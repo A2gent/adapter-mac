@@ -2,6 +2,7 @@ import Cocoa
 
 class RecordingWindow: NSWindow {
     private var waveformView: WaveformView?
+    private var isClosed = false
     
     init() {
         // Create small floating window at top of screen
@@ -60,10 +61,17 @@ class RecordingWindow: NSWindow {
     }
     
     func show() {
+        isClosed = false
         self.orderFrontRegardless()
     }
     
+    override func close() {
+        isClosed = true
+        super.close()
+    }
+    
     func updateWaveform(data: [Float]) {
+        guard !isClosed else { return }
         waveformView?.updateData(data)
     }
 }
@@ -84,8 +92,11 @@ class WaveformView: NSView {
     }
     
     func updateData(_ data: [Float]) {
-        self.waveformData = data
-        self.needsDisplay = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.waveformData = data
+            self.needsDisplay = true
+        }
     }
     
     override func draw(_ dirtyRect: NSRect) {

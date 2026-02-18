@@ -111,8 +111,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func stopRecording() {
         isRecording = false
-        recordingWindow?.close()
+        
+        // Close and nil out window first
+        let window = recordingWindow
         recordingWindow = nil
+        window?.close()
         
         audioService?.stopRecording { [weak self] audioFileURL in
             guard let url = audioFileURL else {
@@ -165,6 +168,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension AppDelegate: AudioServiceDelegate {
     func audioService(_ service: AudioService, didUpdateWaveform data: [Float]) {
-        recordingWindow?.updateWaveform(data: data)
+        guard isRecording, let window = recordingWindow else { return }
+        window.updateWaveform(data: data)
     }
 }

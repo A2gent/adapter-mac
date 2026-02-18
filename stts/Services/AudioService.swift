@@ -67,35 +67,42 @@ class AudioService: NSObject {
         
         // Install tap to capture audio
         input.installTap(onBus: bus, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            guard let self = self, self.isRecording else { return }
+            guard let self = self, self.isRecording, let file = self.audioFile else { return }
             
             // Write to file
             do {
-                try self.audioFile?.write(from: buffer)
+                try file.write(from: buffer)
             } catch {
                 print("❌ Write error: \(error)")
                 return
             }
             
-            // Calculate RMS for waveform
-            guard let channelData = buffer.floatChannelData?[0] else { return }
+            // Calculate RMS for waveform - with safety checks
+            guard buffer.frameLength > 0,
+                  let channelData = buffer.floatChannelData,
+                  buffer.format.channelCount > 0 else {
+                return
+            }
+            
+            let data = channelData[0]
             let frameLength = Int(buffer.frameLength)
             
             var sum: Float = 0
             for i in 0..<frameLength {
-                let sample = channelData[i]
+                let sample = data[i]
                 sum += sample * sample
             }
             let rms = sqrt(sum / Float(frameLength))
             
-            // Update waveform on main thread
+            // Update waveform on main thread - avoid capturing self strongly
+            let delegate = self.delegate
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+                guard let self = self, self.isRecording else { return }
                 self.waveformData.append(rms)
                 if self.waveformData.count > 100 {
                     self.waveformData.removeFirst()
                 }
-                self.delegate?.audioService(self, didUpdateWaveform: self.waveformData)
+                delegate?.audioService(self, didUpdateWaveform: self.waveformData)
             }
         }
         
