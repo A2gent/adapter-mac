@@ -9,12 +9,14 @@ class AudioService: NSObject {
     weak var delegate: AudioServiceDelegate?
     
     private var audioEngine: AVAudioEngine?
+    private var inputNode: AVAudioInputNode?
     private var audioFile: AVAudioFile?
     private var audioPlayer: AVAudioPlayer?
     private var speechSynthesizer: AVSpeechSynthesizer?
     
     private var recordingTimer: Timer?
     private var waveformData: [Float] = []
+    private var isRecording = false
     
     static func requestMicrophonePermission() {
         AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -29,118 +31,110 @@ class AudioService: NSObject {
     // MARK: - Recording
     
     func startRecording(completion: @escaping (Bool) -> Void) {
-        audioEngine = AVAudioEngine()
-        guard let audioEngine = audioEngine else {
+        guard !isRecording else {
+            print("Already recording")
             completion(false)
             return
         }
         
-        let inputNode = audioEngine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        // Clean up any previous session
+        stopRecording { _ in }
+        waveformData.removeAll()
         
-        // Use standard recording format (44.1kHz, mono, 16-bit PCM)
-        guard let recordingFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 44100,
-            channels: 1,
-            interleaved: false
-        ) else {
-            print("Failed to create recording format")
-            completion(false)
-            return
-        }
+        // Create new audio engine
+        let engine = AVAudioEngine()
+        self.audioEngine = engine
+        
+        let input = engine.inputNode
+        self.inputNode = input
+        
+        let bus = 0
+        let inputFormat = input.outputFormat(forBus: bus)
+        
+        print("📱 Input format: sampleRate=\(inputFormat.sampleRate), channels=\(inputFormat.channelCount)")
         
         // Create temporary file for recording
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("recording_\(Date().timeIntervalSince1970).wav")
         
+        // Use the input format directly to avoid conversion issues
         do {
-            audioFile = try AVAudioFile(forWriting: tempURL, settings: recordingFormat.settings)
+            audioFile = try AVAudioFile(forWriting: tempURL, settings: inputFormat.settings)
         } catch {
-            print("Failed to create audio file: \(error)")
+            print("❌ Failed to create audio file: \(error)")
             completion(false)
             return
         }
         
-        // Create converter from input format to recording format
-        guard let converter = AVAudioConverter(from: inputFormat, to: recordingFormat) else {
-            print("Failed to create audio converter")
-            completion(false)
-            return
-        }
-        
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            guard let self = self, let audioFile = self.audioFile else { return }
+        // Install tap to capture audio
+        input.installTap(onBus: bus, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
+            guard let self = self, self.isRecording else { return }
             
-            // Convert buffer to recording format
-            guard let convertedBuffer = AVAudioPCMBuffer(
-                pcmFormat: recordingFormat,
-                frameCapacity: AVAudioFrameCount(recordingFormat.sampleRate) * buffer.frameLength / AVAudioFrameCount(inputFormat.sampleRate)
-            ) else {
-                return
-            }
-            
-            var error: NSError?
-            let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
-                outStatus.pointee = .haveData
-                return buffer
-            }
-            
-            converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
-            
-            if let error = error {
-                print("Conversion error: \(error)")
-                return
-            }
-            
+            // Write to file
             do {
-                try audioFile.write(from: convertedBuffer)
-                
-                // Extract waveform data for visualization from original buffer
-                let channelData = buffer.floatChannelData?[0]
-                let frameLength = Int(buffer.frameLength)
-                
-                var rms: Float = 0
-                if let data = channelData {
-                    for i in 0..<frameLength {
-                        let sample = data[i]
-                        rms += sample * sample
-                    }
-                    rms = sqrt(rms / Float(frameLength))
-                }
-                
-                DispatchQueue.main.async {
-                    self.waveformData.append(rms)
-                    if self.waveformData.count > 100 {
-                        self.waveformData.removeFirst()
-                    }
-                    self.delegate?.audioService(self, didUpdateWaveform: self.waveformData)
-                }
+                try self.audioFile?.write(from: buffer)
             } catch {
-                print("Failed to write audio buffer: \(error)")
+                print("❌ Write error: \(error)")
+                return
+            }
+            
+            // Calculate RMS for waveform
+            guard let channelData = buffer.floatChannelData?[0] else { return }
+            let frameLength = Int(buffer.frameLength)
+            
+            var sum: Float = 0
+            for i in 0..<frameLength {
+                let sample = channelData[i]
+                sum += sample * sample
+            }
+            let rms = sqrt(sum / Float(frameLength))
+            
+            // Update waveform on main thread
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.waveformData.append(rms)
+                if self.waveformData.count > 100 {
+                    self.waveformData.removeFirst()
+                }
+                self.delegate?.audioService(self, didUpdateWaveform: self.waveformData)
             }
         }
         
+        // Start the engine
         do {
-            try audioEngine.start()
+            try engine.start()
+            isRecording = true
+            print("✅ Recording started")
             completion(true)
         } catch {
-            print("Failed to start audio engine: \(error)")
+            print("❌ Failed to start engine: \(error)")
+            input.removeTap(onBus: bus)
             completion(false)
         }
     }
     
     func stopRecording(completion: @escaping (URL?) -> Void) {
-        guard let audioEngine = audioEngine else {
+        guard isRecording else {
             completion(nil)
             return
         }
         
-        audioEngine.inputNode.removeTap(onBus: 0)
-        audioEngine.stop()
+        isRecording = false
         
+        // Remove tap first
+        inputNode?.removeTap(onBus: 0)
+        
+        // Stop engine
+        audioEngine?.stop()
+        
+        // Get file URL before cleanup
         let fileURL = audioFile?.url
+        
+        // Cleanup
         audioFile = nil
-        self.audioEngine = nil
+        audioEngine = nil
+        inputNode = nil
+        
+        print("🛑 Recording stopped: \(fileURL?.path ?? "no file")")
         
         completion(fileURL)
     }
