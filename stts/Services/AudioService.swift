@@ -36,7 +36,19 @@ class AudioService: NSObject {
         }
         
         let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        let inputFormat = inputNode.outputFormat(forBus: 0)
+        
+        // Use standard recording format (44.1kHz, mono, 16-bit PCM)
+        guard let recordingFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 44100,
+            channels: 1,
+            interleaved: false
+        ) else {
+            print("Failed to create recording format")
+            completion(false)
+            return
+        }
         
         // Create temporary file for recording
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("recording_\(Date().timeIntervalSince1970).wav")
@@ -49,13 +61,41 @@ class AudioService: NSObject {
             return
         }
         
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+        // Create converter from input format to recording format
+        guard let converter = AVAudioConverter(from: inputFormat, to: recordingFormat) else {
+            print("Failed to create audio converter")
+            completion(false)
+            return
+        }
+        
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             guard let self = self, let audioFile = self.audioFile else { return }
             
+            // Convert buffer to recording format
+            guard let convertedBuffer = AVAudioPCMBuffer(
+                pcmFormat: recordingFormat,
+                frameCapacity: AVAudioFrameCount(recordingFormat.sampleRate) * buffer.frameLength / AVAudioFrameCount(inputFormat.sampleRate)
+            ) else {
+                return
+            }
+            
+            var error: NSError?
+            let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
+                outStatus.pointee = .haveData
+                return buffer
+            }
+            
+            converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
+            
+            if let error = error {
+                print("Conversion error: \(error)")
+                return
+            }
+            
             do {
-                try audioFile.write(from: buffer)
+                try audioFile.write(from: convertedBuffer)
                 
-                // Extract waveform data for visualization
+                // Extract waveform data for visualization from original buffer
                 let channelData = buffer.floatChannelData?[0]
                 let frameLength = Int(buffer.frameLength)
                 

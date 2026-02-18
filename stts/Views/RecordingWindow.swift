@@ -27,9 +27,10 @@ class RecordingWindow: NSWindow {
         self.isOpaque = false
         self.backgroundColor = NSColor.black.withAlphaComponent(0.85)
         self.level = .floating
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         self.hasShadow = true
         self.isMovableByWindowBackground = true
+        self.ignoresMouseEvents = false
         
         // Add waveform view
         let waveformView = WaveformView(frame: self.contentView!.bounds)
@@ -50,8 +51,15 @@ class RecordingWindow: NSWindow {
         self.contentView?.layer?.cornerRadius = 10
     }
     
+    override var canBecomeKey: Bool {
+        return false
+    }
+    
+    override var canBecomeMain: Bool {
+        return false
+    }
+    
     func show() {
-        self.makeKeyAndOrderFront(nil)
         self.orderFrontRegardless()
     }
     
@@ -92,8 +100,15 @@ class WaveformView: NSView {
         
         // Draw bars
         for i in 0..<barCount {
-            let dataIndex = min(i, waveformData.count - 1)
-            let amplitude = dataIndex < waveformData.count ? CGFloat(waveformData[dataIndex]) : 0
+            // Map bar index to waveform data (with safety checks)
+            let amplitude: CGFloat
+            if waveformData.isEmpty {
+                amplitude = 0
+            } else {
+                let dataIndex = Int(Float(i) / Float(barCount) * Float(waveformData.count))
+                let safeIndex = min(max(0, dataIndex), waveformData.count - 1)
+                amplitude = CGFloat(waveformData[safeIndex])
+            }
             
             // Calculate target height
             let targetHeight = max(4, amplitude * height * 2)
