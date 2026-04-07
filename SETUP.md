@@ -43,33 +43,33 @@ Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute)
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────┐
-│           macOS Menu Bar App                │
-│                                             │
-│  ┌─────────────┐      ┌──────────────────┐ │
-│  │ AppDelegate │──────│ Global Shortcut  │ │
-│  │             │      │ Monitor (F12)    │ │
-│  └─────────────┘      └──────────────────┘ │
-│         │                                   │
-│         ├────► AudioService                 │
-│         │      (AVFoundation)               │
-│         │                                   │
-│         ├────► AccessibilityService         │
-│         │      (AX API)                     │
-│         │                                   │
-│         ├────► RecordingWindow              │
-│         │      (Waveform Viz)               │
-│         │                                   │
-│         └────► WhisperService               │
-│                (HTTP → brute)               │
-└─────────────────────────────────────────────┘
-                   │
-                   ▼
-         ┌─────────────────┐
-         │  brute backend  │
-         │  (whisper.cpp)  │
-         └─────────────────┘
+```mermaid
+flowchart TD
+    subgraph App["Parselton macOS Menu Bar App"]
+        AD["AppDelegate"]
+        GSM["GlobalShortcutMonitor<br/>(F12)"]
+        AX["AccessibilityService<br/>(AX API)"]
+        AS["AudioService"]
+        RW["RecordingWindow<br/>(waveform)"]
+        PW["PlaybackWindow<br/>(pause, stop, seek)"]
+        WS["WhisperService<br/>(HTTP client)"]
+        EDGE["edge-tts<br/>(Microsoft online TTS)"]
+        NSS["NSSpeechSynthesizer<br/>(local fallback TTS)"]
+        PLAYER["AVAudioPlayer<br/>(playback + scrubbing)"]
+    end
+
+    AD --> GSM
+    AD --> AX
+    AD --> AS
+    AD --> RW
+    AD --> PW
+    AD --> WS
+
+    AS --> EDGE
+    AS --> NSS
+    AS --> PLAYER
+
+    WS --> BRUTE["brute backend<br/>(Whisper transcription)"]
 ```
 
 ## Key Files
@@ -80,9 +80,10 @@ Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute)
 | `main.swift` | Entry point |
 | `Services/GlobalShortcutMonitor.swift` | F12 keyboard shortcut via Carbon |
 | `Services/AccessibilityService.swift` | Text selection & paste via AX API |
-| `Services/AudioService.swift` | Recording & TTS via AVFoundation |
+| `Services/AudioService.swift` | Recording, TTS synthesis, playback, and seek controls |
 | `Services/WhisperService.swift` | HTTP client for transcription |
 | `Views/RecordingWindow.swift` | Floating window with waveform |
+| `Views/PlaybackWindow.swift` | Floating TTS playback controls |
 
 ## Usage Flow
 
@@ -90,8 +91,10 @@ Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute)
 1. Select text in any app
 2. Press F12
 3. App reads selection via Accessibility API
-4. If available, `edge-tts` generates higher-quality audio and the app plays it
-5. If `edge-tts` is unavailable or fails, `AVSpeechSynthesizer` plays the text locally
+4. Playback window appears with stop, pause, and seek controls
+5. If available, `edge-tts` sends text to Microsoft's online TTS service and generates audio
+6. If `edge-tts` is unavailable or fails, macOS speech synthesis generates audio locally
+7. `AVAudioPlayer` plays the generated file so playback can be paused and scrubbed
 
 ### Speech-to-Text (STT)
 1. Press F12 (no text selected)

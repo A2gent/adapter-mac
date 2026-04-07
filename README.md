@@ -95,6 +95,21 @@ When `edge-tts` is available, the selected text is sent to Microsoft's online te
 - **Accessibility API** for text selection detection and insertion
 - **brute** backend integration for speech-to-text
 
+```mermaid
+flowchart TD
+    AD["AppDelegate"] --> AX["AccessibilityService"]
+    AD --> AS["AudioService"]
+    AD --> RW["RecordingWindow"]
+    AD --> PW["PlaybackWindow"]
+    AD --> WS["WhisperService"]
+
+    AS --> EDGE["edge-tts (online)"]
+    AS --> NSS["macOS speech synthesis (local fallback)"]
+    AS --> PLAYER["AVAudioPlayer"]
+
+    WS --> BRUTE["brute backend"]
+```
+
 ## Usage
 
 1. Click menu bar icon to configure settings
