@@ -5,7 +5,7 @@
 1. **Открыть в Xcode:**
    ```bash
    cd ~/git/stts
-   open stts.xcodeproj
+   open scribe.xcodeproj
    ```
 
 2. **Build & Run** (`Cmd+R`)

@@ -4,18 +4,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "stts",
+    name: "scribe",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .executable(
-            name: "stts",
-            targets: ["stts"])
+            name: "scribe",
+            targets: ["scribe"])
     ],
     targets: [
         .executableTarget(
-            name: "stts",
+            name: "scribe",
             path: "stts")
     ]
 )

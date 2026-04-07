@@ -1,4 +1,8 @@
-# STTS - Speech To Text & Text To Speech
+# Scribe - Speech To Text & Text To Speech
+
+<p align="center">
+  <img src="./logo-settings.png" alt="Scribe logo" width="180" />
+</p>
 
 Native macOS application for system-wide speech-to-text and text-to-speech conversion.
 
@@ -28,7 +32,7 @@ Native macOS application for system-wide speech-to-text and text-to-speech conve
 
 2. **Open in Xcode**:
    ```bash
-   open stts.xcodeproj
+   open scribe.xcodeproj
    ```
 
 3. **Build and Run** (`Cmd+R` in Xcode)
@@ -37,7 +41,9 @@ Native macOS application for system-wide speech-to-text and text-to-speech conve
    - Microphone access
    - Accessibility access
 
-5. **Test it**:
+5. **Open Settings** and confirm the backend URL if needed.
+
+6. **Test it**:
    - Select any text → Press F12 → Listen to speech
    - No selection → Press F12 → Speak → Press F12 again → Text pasted
 
@@ -55,6 +61,11 @@ make run
 Or use the helper script:
 ```bash
 ./scripts/start-backend.sh
+```
+
+Default transcription endpoint:
+```text
+http://localhost:5445/speech/transcribe
 ```
 
 Test the endpoint:

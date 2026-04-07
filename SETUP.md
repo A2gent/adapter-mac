@@ -5,7 +5,7 @@
 1. **Open in Xcode:**
    ```bash
    cd ~/git/stts
-   open stts.xcodeproj
+   open scribe.xcodeproj
    ```
 
 2. **Build and Run:**
@@ -31,13 +31,14 @@ The app connects to the a2gent backend for Whisper transcription.
 
 2. **Verify the endpoint:**
    ```bash
-   curl http://localhost:3000/health
+   curl http://localhost:5445/health
    ```
 
 3. **Configure endpoint** (if different):
-   Edit `stts/Services/WhisperService.swift` and change:
-   ```swift
-   private let apiEndpoint = "http://localhost:3000/speech/transcribe"
+   Open app Settings and update `Backend URL`.
+   Default:
+   ```text
+   http://localhost:5445/speech/transcribe
    ```
 
 ## Architecture Overview
@@ -104,14 +105,14 @@ The app connects to the a2gent backend for Whisper transcription.
 
 ### "Microphone permission denied"
 - Go to System Settings → Privacy & Security → Microphone
-- Enable for "stts"
+- Enable for "Scribe"
 
 ### "Accessibility permission denied"
 - Go to System Settings → Privacy & Security → Accessibility
-- Enable for "stts"
+- Enable for "Scribe"
 
 ### "Failed to transcribe"
-- Ensure a2gent backend is running on `localhost:3000`
+- Ensure a2gent backend is running on `localhost:5445`
 - Check backend logs for errors
 - Verify audio file was created in `/tmp/`
 
@@ -130,10 +131,7 @@ registerHotKey(keyCode: 111, modifiers: 0)
 ```
 
 ### Change API Endpoint
-Edit `stts/Services/WhisperService.swift`:
-```swift
-private let apiEndpoint = "http://your-server:3000/speech/transcribe"
-```
+Use the app Settings window and update `Backend URL`.
 
 ### Customize Waveform
 Edit `stts/Views/RecordingWindow.swift`:

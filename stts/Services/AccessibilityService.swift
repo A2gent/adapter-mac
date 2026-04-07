@@ -1,6 +1,11 @@
 import Cocoa
 import ApplicationServices
 
+enum AccessibilityPasteResult {
+    case pasted
+    case copiedToClipboard(reason: String)
+}
+
 class AccessibilityService {
     static func requestAccessibilityPermission() {
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
@@ -37,21 +42,18 @@ class AccessibilityService {
         return text
     }
     
-    static func pasteText(_ text: String) {
-        guard isAccessibilityEnabled() else {
-            print("Accessibility permission not granted")
-            return
-        }
-        
-        // Save current clipboard
+    static func pasteText(_ text: String) -> AccessibilityPasteResult {
         let pasteboard = NSPasteboard.general
         let previousContents = pasteboard.string(forType: .string)
-        
-        // Set text to clipboard
+
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        
-        // Simulate Cmd+V
+
+        guard isAccessibilityEnabled() else {
+            print("Accessibility permission not granted")
+            return .copiedToClipboard(reason: "Accessibility access is not active for this running build.")
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x09, keyDown: true) // V key
             cmdVDown?.flags = .maskCommand
@@ -69,5 +71,7 @@ class AccessibilityService {
                 }
             }
         }
+
+        return .pasted
     }
 }
