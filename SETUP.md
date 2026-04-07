@@ -5,7 +5,7 @@
 1. **Open in Xcode:**
    ```bash
    cd ~/git/stts
-   open scribe.xcodeproj
+   open parselton.xcodeproj
    ```
 
 2. **Build and Run:**
@@ -105,11 +105,11 @@ The app connects to the a2gent backend for Whisper transcription.
 
 ### "Microphone permission denied"
 - Go to System Settings → Privacy & Security → Microphone
-- Enable for "Scribe"
+- Enable for "Parselton"
 
 ### "Accessibility permission denied"
 - Go to System Settings → Privacy & Security → Accessibility
-- Enable for "Scribe"
+- Enable for "Parselton"
 
 ### "Failed to transcribe"
 - Ensure a2gent backend is running on `localhost:5445`

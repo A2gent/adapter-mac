@@ -41,6 +41,15 @@ class AccessibilityService {
         
         return text
     }
+
+    static func getSelectedText(completion: @escaping (String?) -> Void) {
+        if let directSelection = getSelectedText(), !directSelection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            completion(directSelection)
+            return
+        }
+
+        copySelectedTextViaClipboard(completion: completion)
+    }
     
     static func pasteText(_ text: String) -> AccessibilityPasteResult {
         let pasteboard = NSPasteboard.general
@@ -73,5 +82,43 @@ class AccessibilityService {
         }
 
         return .pasted
+    }
+
+    private static func copySelectedTextViaClipboard(completion: @escaping (String?) -> Void) {
+        guard isAccessibilityEnabled() else {
+            completion(nil)
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        let previousContents = pasteboard.string(forType: .string)
+        let previousChangeCount = pasteboard.changeCount
+
+        let cmdCDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x08, keyDown: true) // C key
+        cmdCDown?.flags = .maskCommand
+        cmdCDown?.post(tap: .cghidEventTap)
+
+        let cmdCUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x08, keyDown: false)
+        cmdCUp?.flags = .maskCommand
+        cmdCUp?.post(tap: .cghidEventTap)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let copiedText: String?
+            if pasteboard.changeCount != previousChangeCount {
+                copiedText = pasteboard.string(forType: .string)
+            } else {
+                copiedText = nil
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                pasteboard.clearContents()
+                if let previousContents, !previousContents.isEmpty {
+                    pasteboard.setString(previousContents, forType: .string)
+                }
+
+                let normalized = copiedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+                completion((normalized?.isEmpty == false) ? normalized : nil)
+            }
+        }
     }
 }

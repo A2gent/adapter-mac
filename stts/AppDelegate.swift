@@ -94,7 +94,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let alert = NSAlert()
         alert.messageText = "Settings"
-        alert.informativeText = "Choose the microphone, global shortcut, and transcription backend Scribe should use."
+        alert.informativeText = "Choose the microphone, global shortcut, and transcription backend Parselton should use."
         alert.alertStyle = .informational
         if let settingsLogo = imageResource(named: "logo-settings") {
             let alertIcon = settingsLogo.copy() as? NSImage ?? settingsLogo
@@ -201,10 +201,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if isRecording {
             stopRecording()
         } else {
-            if let selectedText = AccessibilityService.getSelectedText(), !selectedText.isEmpty {
-                performTextToSpeech(text: selectedText)
-            } else {
-                startRecording()
+            AccessibilityService.getSelectedText { [weak self] selectedText in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+
+                    if let selectedText, !selectedText.isEmpty {
+                        self.performTextToSpeech(text: selectedText)
+                    } else {
+                        self.startRecording()
+                    }
+                }
             }
         }
     }
@@ -323,10 +329,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch state {
         case .idle:
             resourceName = "logo-silent"
-            description = "Scribe Idle"
+            description = "Parselton Idle"
         case .active:
             resourceName = "logo-speaking"
-            description = "Scribe Active"
+            description = "Parselton Active"
         }
 
         guard let image = imageResource(named: resourceName) else {

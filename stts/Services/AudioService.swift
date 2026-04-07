@@ -15,8 +15,8 @@ final class AudioService: NSObject {
     weak var delegate: AudioServiceDelegate?
 
     private let selectedMicrophoneIDKey = "selectedMicrophoneID"
-    private let sessionQueue = DispatchQueue(label: "com.a2gent.scribe.audio.session")
-    private let captureQueue = DispatchQueue(label: "com.a2gent.scribe.audio.capture")
+    private let sessionQueue = DispatchQueue(label: "com.a2gent.parselton.audio.session")
+    private let captureQueue = DispatchQueue(label: "com.a2gent.parselton.audio.capture")
 
     private var captureSession: AVCaptureSession?
     private var captureInput: AVCaptureDeviceInput?
@@ -47,14 +47,6 @@ final class AudioService: NSObject {
     }
 
     private func captureDevices() -> [AVCaptureDevice] {
-        if #available(macOS 14.0, *) {
-            return AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            ).devices
-        }
-
         return AVCaptureDevice.devices(for: .audio)
     }
 

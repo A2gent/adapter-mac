@@ -5,7 +5,7 @@
 1. **Открыть в Xcode:**
    ```bash
    cd ~/git/stts
-   open scribe.xcodeproj
+   open parselton.xcodeproj
    ```
 
 2. **Build & Run** (`Cmd+R`)

@@ -8,8 +8,8 @@ class RecordingWindow: NSPanel {
     init(deviceName: String) {
         self.deviceName = deviceName
         let screenFrame = NSScreen.main?.frame ?? .zero
-        let windowWidth: CGFloat = 264
-        let windowHeight: CGFloat = 38
+        let windowWidth: CGFloat = 212
+        let windowHeight: CGFloat = 50
         let xPos = (screenFrame.width - windowWidth) / 2
         let yPos = screenFrame.height - windowHeight - 50
         
@@ -42,7 +42,7 @@ class RecordingWindow: NSPanel {
         contentView.addSubview(waveformView)
         self.waveformView = waveformView
         
-        let recordingIndicator = NSView(frame: NSRect(x: 10, y: frame.height - 16, width: 6, height: 6))
+        let recordingIndicator = NSView(frame: NSRect(x: 10, y: frame.height - 19, width: 6, height: 6))
         recordingIndicator.wantsLayer = true
         recordingIndicator.layer?.cornerRadius = 3
         recordingIndicator.layer?.backgroundColor = NSColor.systemRed.cgColor
@@ -52,24 +52,16 @@ class RecordingWindow: NSPanel {
         let recordingLabel = NSTextField(labelWithString: "REC")
         recordingLabel.textColor = NSColor.white.withAlphaComponent(0.96)
         recordingLabel.font = NSFont.monospacedSystemFont(ofSize: 8, weight: .semibold)
-        recordingLabel.frame = NSRect(x: 21, y: frame.height - 19, width: 36, height: 10)
+        recordingLabel.frame = NSRect(x: 21, y: frame.height - 22, width: 36, height: 10)
         recordingLabel.autoresizingMask = [.maxXMargin, .minYMargin]
         contentView.addSubview(recordingLabel)
-
-        let microphoneIcon = NSImageView(frame: NSRect(x: frame.width - 112, y: frame.height - 19, width: 8, height: 10))
-        microphoneIcon.image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Microphone")
-        microphoneIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 8, weight: .medium)
-        microphoneIcon.contentTintColor = NSColor.white.withAlphaComponent(0.58)
-        microphoneIcon.imageScaling = .scaleProportionallyDown
-        microphoneIcon.autoresizingMask = [.minXMargin, .minYMargin]
-        contentView.addSubview(microphoneIcon)
 
         let deviceLabel = NSTextField(labelWithString: deviceName)
         deviceLabel.textColor = NSColor.white.withAlphaComponent(0.58)
         deviceLabel.font = NSFont.systemFont(ofSize: 8, weight: .medium)
         deviceLabel.alignment = .right
-        deviceLabel.frame = NSRect(x: 62, y: frame.height - 19, width: frame.width - 76, height: 10)
-        deviceLabel.lineBreakMode = .byTruncatingHead
+        deviceLabel.frame = NSRect(x: 60, y: frame.height - 22, width: frame.width - 70, height: 10)
+        deviceLabel.lineBreakMode = .byTruncatingMiddle
         deviceLabel.autoresizingMask = [.width, .minYMargin, .minXMargin]
         contentView.addSubview(deviceLabel)
         
@@ -108,7 +100,7 @@ class RecordingWindow: NSPanel {
 class WaveformView: NSView {
     private var waveformData: [Float] = []
     private var smoothedHeights: [CGFloat] = []
-    private let barCount = 44
+    private let barCount = 52
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -135,12 +127,12 @@ class WaveformView: NSView {
         
         let width = bounds.width
         let height = bounds.height
-        let topInset: CGFloat = 15
-        let bottomInset: CGFloat = 5
+        let topInset: CGFloat = 19
+        let bottomInset: CGFloat = 7
         let drawingHeight = max(1, height - topInset - bottomInset)
         let drawingY = bottomInset
         let barWidth = width / CGFloat(barCount)
-        let barSpacing: CGFloat = 2.2
+        let barSpacing: CGFloat = 2.4
         let baselineY = drawingY + drawingHeight / 2
 
         context.setFillColor(NSColor.white.withAlphaComponent(0.1).cgColor)
@@ -172,11 +164,11 @@ class WaveformView: NSView {
             let barRect = CGRect(
                 x: x + barSpacing / 2,
                 y: y,
-                width: max(0.8, barWidth - barSpacing),
+                width: max(0.55, barWidth - barSpacing),
                 height: barHeight
             )
             
-            let path = NSBezierPath(roundedRect: barRect, xRadius: 0.7, yRadius: 0.7)
+            let path = NSBezierPath(roundedRect: barRect, xRadius: 0.45, yRadius: 0.45)
             path.fill()
         }
     }

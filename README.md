@@ -1,7 +1,7 @@
-# Scribe - Speech To Text & Text To Speech
+# Parselton - Speech To Text & Text To Speech
 
 <p align="center">
-  <img src="./logo-settings.png" alt="Scribe logo" width="180" />
+  <img src="./logo-settings.png" alt="Parselton logo" width="180" />
 </p>
 
 Native macOS application for system-wide speech-to-text and text-to-speech conversion.
@@ -32,7 +32,7 @@ Native macOS application for system-wide speech-to-text and text-to-speech conve
 
 2. **Open in Xcode**:
    ```bash
-   open scribe.xcodeproj
+   open parselton.xcodeproj
    ```
 
 3. **Build and Run** (`Cmd+R` in Xcode)
