@@ -21,11 +21,11 @@
 
 ## Backend Setup (Required for Speech-to-Text)
 
-The app connects to the a2gent backend for Whisper transcription.
+Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute) for Whisper transcription. Speech-to-text will not work unless that service is running.
 
 1. **Start the backend:**
    ```bash
-   cd ~/git/a2gent/aagent
+   cd ~/git/a2gent/brute
    make run
    ```
 
@@ -62,12 +62,12 @@ The app connects to the a2gent backend for Whisper transcription.
 │         │      (Waveform Viz)               │
 │         │                                   │
 │         └────► WhisperService               │
-│                (HTTP → a2gent)              │
+│                (HTTP → brute)               │
 └─────────────────────────────────────────────┘
                    │
                    ▼
          ┌─────────────────┐
-         │  a2gent backend │
+         │  brute backend  │
          │  (whisper.cpp)  │
          └─────────────────┘
 ```
@@ -90,14 +90,15 @@ The app connects to the a2gent backend for Whisper transcription.
 1. Select text in any app
 2. Press F12
 3. App reads selection via Accessibility API
-4. AVSpeechSynthesizer plays audio
+4. If available, `edge-tts` generates higher-quality audio and the app plays it
+5. If `edge-tts` is unavailable or fails, `AVSpeechSynthesizer` plays the text locally
 
 ### Speech-to-Text (STT)
 1. Press F12 (no text selected)
 2. Recording window appears with waveform
 3. Speak into microphone
 4. Press F12 again to stop
-5. Audio sent to a2gent backend
+5. Audio sent to brute backend
 6. Whisper transcribes audio
 7. Text pasted at cursor via Accessibility API
 
@@ -112,7 +113,7 @@ The app connects to the a2gent backend for Whisper transcription.
 - Enable for "Parselton"
 
 ### "Failed to transcribe"
-- Ensure a2gent backend is running on `localhost:5445`
+- Ensure the brute backend is running on `localhost:5445`
 - Check backend logs for errors
 - Verify audio file was created in `/tmp/`
 

@@ -14,6 +14,7 @@
 		1A0000010000000000000005 /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000005 /* AudioService.swift */; };
 		1A0000010000000000000006 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000006 /* WhisperService.swift */; };
 		1A0000010000000000000007 /* RecordingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000007 /* RecordingWindow.swift */; };
+		1A0000010000000000000012 /* PlaybackWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000013 /* PlaybackWindow.swift */; };
 		1A0000010000000000000008 /* logo-settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000009 /* logo-settings.png */; };
 		1A0000010000000000000009 /* logo-silent.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000010 /* logo-silent.png */; };
 		1A0000010000000000000010 /* logo-speaking.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000011 /* logo-speaking.png */; };
@@ -33,6 +34,7 @@
 		1A0000020000000000000010 /* logo-silent.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "logo-silent.png"; path = "../logo-silent.png"; sourceTree = "<group>"; };
 		1A0000020000000000000011 /* logo-speaking.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "logo-speaking.png"; path = "../logo-speaking.png"; sourceTree = "<group>"; };
 		1A0000020000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A0000020000000000000013 /* PlaybackWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWindow.swift; sourceTree = "<group>"; };
 		1AFFFFFFFF0000000000001 /* Parselton.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Parselton.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -92,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				1A0000020000000000000007 /* RecordingWindow.swift */,
+				1A0000020000000000000013 /* PlaybackWindow.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -172,6 +175,7 @@
 				1A0000010000000000000005 /* AudioService.swift in Sources */,
 				1A0000010000000000000006 /* WhisperService.swift in Sources */,
 				1A0000010000000000000007 /* RecordingWindow.swift in Sources */,
+				1A0000010000000000000012 /* PlaybackWindow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

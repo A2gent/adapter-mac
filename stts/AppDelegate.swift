@@ -12,7 +12,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var shortcutMonitor: GlobalShortcutMonitor?
     var audioService: AudioService?
     var recordingWindow: RecordingWindow?
+    var playbackWindow: PlaybackWindow?
     var isRecording = false
+    var isPlayingTextToSpeech = false
     private var hasShownAccessibilityClipboardNotice = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -200,6 +202,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleShortcutPressed() {
         if isRecording {
             stopRecording()
+        } else if isPlayingTextToSpeech {
+            stopPlayback()
         } else {
             AccessibilityService.getSelectedText { [weak self] selectedText in
                 DispatchQueue.main.async {
@@ -269,10 +273,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func stopRecordingFromMenu() {
         stopRecording()
     }
+
+    private func stopPlayback() {
+        audioService?.stopPlayback()
+    }
     
     private func performTextToSpeech(text: String) {
+        let window = PlaybackWindow()
+        window.onStop = { [weak self] in self?.stopPlayback() }
+        window.onTogglePause = { [weak self] in self?.audioService?.togglePlaybackPaused() }
+        window.onSeekBackward = { [weak self] in self?.audioService?.seekPlayback(by: -15) }
+        window.onSeekForward = { [weak self] in self?.audioService?.seekPlayback(by: 15) }
+        window.onSeekToTime = { [weak self] time in self?.audioService?.seekPlayback(to: time) }
+        window.setPreparing()
+        window.show()
+        playbackWindow?.close()
+        playbackWindow = window
+        isPlayingTextToSpeech = true
+        updateMenuState()
+
         audioService?.playTextToSpeech(text: text) { [weak self] success in
             if !success {
+                self?.isPlayingTextToSpeech = false
+                self?.playbackWindow?.close()
+                self?.playbackWindow = nil
+                self?.updateMenuState()
                 self?.showError("Failed to play audio")
             }
         }
@@ -317,9 +342,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMenuState() {
         guard let menu else { return }
 
-        menu.item(withTitle: "Start Recording")?.isEnabled = !isRecording
+        menu.item(withTitle: "Start Recording")?.isEnabled = !isRecording && !isPlayingTextToSpeech
         menu.item(withTitle: "Stop Recording")?.isEnabled = isRecording
-        statusItem?.button?.image = menuBarImage(for: isRecording ? .active : .idle)
+        statusItem?.button?.image = menuBarImage(for: (isRecording || isPlayingTextToSpeech) ? .active : .idle)
     }
 
     private func menuBarImage(for state: MenuBarVisualState) -> NSImage? {
@@ -360,5 +385,30 @@ extension AppDelegate: AudioServiceDelegate {
     func audioService(_ service: AudioService, didUpdateWaveform data: [Float]) {
         guard isRecording, let window = recordingWindow else { return }
         window.updateWaveform(data: data)
+    }
+
+    func audioServiceDidBeginPreparingPlayback(_ service: AudioService) {
+        isPlayingTextToSpeech = true
+        playbackWindow?.setPreparing()
+        playbackWindow?.show()
+        updateMenuState()
+    }
+
+    func audioService(_ service: AudioService, didStartPlaybackWithDuration duration: TimeInterval) {
+        isPlayingTextToSpeech = true
+        playbackWindow?.updatePlayback(currentTime: 0, duration: duration, isPlaying: true)
+        playbackWindow?.show()
+        updateMenuState()
+    }
+
+    func audioService(_ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval, isPlaying: Bool) {
+        playbackWindow?.updatePlayback(currentTime: currentTime, duration: duration, isPlaying: isPlaying)
+    }
+
+    func audioServiceDidFinishPlayback(_ service: AudioService) {
+        isPlayingTextToSpeech = false
+        playbackWindow?.close()
+        playbackWindow = nil
+        updateMenuState()
     }
 }
