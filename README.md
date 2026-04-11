@@ -8,6 +8,11 @@ Native macOS application for system-wide speech-to-text and text-to-speech conve
 
 Speech-to-text depends on the [A2gent brute backend](https://github.com/A2gent/brute) being installed and running locally.
 
+<img width="258" height="114" alt="Screenshot 2026-04-11 at 23 53 53" src="https://github.com/user-attachments/assets/296884fc-498c-4937-8adc-0beaade82f66" />
+<img width="358" height="144" alt="Screenshot 2026-04-11 at 23 55 06" src="https://github.com/user-attachments/assets/94c2fc07-a5f6-478d-a968-017d11beec55" />
+<img width="596" height="618" alt="Screenshot 2026-04-11 at 23 56 17" src="https://github.com/user-attachments/assets/e1f6d592-2cb1-47ec-8f83-9d1fe1402605" />
+
+
 ## Features
 
 - **Two system-wide keyboard shortcuts** (default: F12 for paste/TTS, F11 for brute voice sessions)
@@ -19,6 +24,8 @@ Speech-to-text depends on the [A2gent brute backend](https://github.com/A2gent/b
 - **Floating playback window** for text-to-speech with stop, pause, and seek controls
 - **Selectable TTS engines** in Settings: automatic, native macOS speech, and `edge-tts`
 - **Native macOS integration** using Swift and AppKit
+
+
 
 ## Requirements
 
