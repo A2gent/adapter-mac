@@ -23,10 +23,28 @@ struct AudioInputDevice: Equatable {
     let isDefault: Bool
 }
 
+enum TTSEngine: String, CaseIterable {
+    case automatic
+    case system
+    case edge
+
+    var title: String {
+        switch self {
+        case .automatic:
+            return "Automatic"
+        case .system:
+            return "System Voice"
+        case .edge:
+            return "edge-tts"
+        }
+    }
+}
+
 final class AudioService: NSObject {
     weak var delegate: AudioServiceDelegate?
 
     private let selectedMicrophoneIDKey = "selectedMicrophoneID"
+    private let selectedTTSEngineKey = "selectedTTSEngine"
     private let sessionQueue = DispatchQueue(label: "com.a2gent.parselton.audio.session")
     private let captureQueue = DispatchQueue(label: "com.a2gent.parselton.audio.capture")
 
@@ -50,7 +68,6 @@ final class AudioService: NSObject {
     private let edgeVoice = "en-US-EmmaMultilingualNeural"
     private let edgeRate = "+0%"
     private let edgePitch = "+0Hz"
-
     static func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
@@ -69,7 +86,20 @@ final class AudioService: NSObject {
     }
 
     private func captureDevices() -> [AVCaptureDevice] {
-        return AVCaptureDevice.devices(for: .audio)
+        let deviceTypes: [AVCaptureDevice.DeviceType]
+        if #available(macOS 14.0, *) {
+            deviceTypes = [.builtInMicrophone, .external]
+        } else {
+            deviceTypes = [.builtInMicrophone]
+        }
+
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: deviceTypes,
+            mediaType: .audio,
+            position: .unspecified
+        )
+
+        return discoverySession.devices
     }
 
     func availableInputDevices() -> [AudioInputDevice] {
@@ -134,6 +164,37 @@ final class AudioService: NSObject {
             UserDefaults.standard.set(id, forKey: selectedMicrophoneIDKey)
         } else {
             UserDefaults.standard.removeObject(forKey: selectedMicrophoneIDKey)
+        }
+    }
+
+    func selectedTTSEngine() -> TTSEngine {
+        guard let rawValue = UserDefaults.standard.string(forKey: selectedTTSEngineKey),
+              let engine = TTSEngine(rawValue: rawValue) else {
+            return .automatic
+        }
+
+        return engine
+    }
+
+    func selectTTSEngine(_ engine: TTSEngine) {
+        UserDefaults.standard.set(engine.rawValue, forKey: selectedTTSEngineKey)
+    }
+
+    func ttsEngineAvailabilitySummary() -> String {
+        let availability = TTSEngine.allCases.map { engine in
+            "\(engine.title): \(ttsEngineStatus(for: engine))"
+        }
+
+        return availability.joined(separator: " | ")
+    }
+
+    func cancelRecording() {
+        guard isRecording else { return }
+
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            self.isRecording = false
+            self.teardownCaptureSession(cancelWriter: true)
         }
     }
 
@@ -411,11 +472,18 @@ final class AudioService: NSObject {
     }
 
     private func synthesizeTextToAudio(text: String) -> URL? {
-        if let audioURL = synthesizeWithEdgeIfAvailable(text: text) {
-            return audioURL
-        }
+        switch selectedTTSEngine() {
+        case .automatic:
+            if let audioURL = synthesizeWithEdgeIfAvailable(text: text) {
+                return audioURL
+            }
 
-        return synthesizeWithSystemVoice(text: text)
+            return synthesizeWithSystemVoice(text: text)
+        case .system:
+            return synthesizeWithSystemVoice(text: text)
+        case .edge:
+            return synthesizeWithEdgeIfAvailable(text: text) ?? synthesizeWithSystemVoice(text: text)
+        }
     }
 
     private func synthesizeWithSystemVoice(text: String) -> URL? {
@@ -550,6 +618,17 @@ final class AudioService: NSObject {
         }
 
         return nil
+    }
+
+    private func ttsEngineStatus(for engine: TTSEngine) -> String {
+        switch engine {
+        case .automatic:
+            return "prefers edge-tts, then system"
+        case .system:
+            return "available"
+        case .edge:
+            return edgeBinaryURL() == nil ? "not found" : "available"
+        }
     }
 
     private func playExternalAudio(url: URL) -> Bool {

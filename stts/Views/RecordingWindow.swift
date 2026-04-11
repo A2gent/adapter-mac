@@ -4,12 +4,16 @@ class RecordingWindow: NSPanel {
     private var waveformView: WaveformView?
     private var isClosed = false
     private let deviceName: String
+    private let titleText: String
+    private let hintText: String
     
-    init(deviceName: String) {
+    init(deviceName: String, titleText: String, hintText: String) {
         self.deviceName = deviceName
+        self.titleText = titleText
+        self.hintText = hintText
         let screenFrame = NSScreen.main?.frame ?? .zero
         let windowWidth: CGFloat = 212
-        let windowHeight: CGFloat = 50
+        let windowHeight: CGFloat = 62
         let xPos = (screenFrame.width - windowWidth) / 2
         let yPos = screenFrame.height - windowHeight - 50
         
@@ -49,7 +53,7 @@ class RecordingWindow: NSPanel {
         recordingIndicator.autoresizingMask = [.maxXMargin, .minYMargin]
         contentView.addSubview(recordingIndicator)
 
-        let recordingLabel = NSTextField(labelWithString: "REC")
+        let recordingLabel = NSTextField(labelWithString: titleText)
         recordingLabel.textColor = NSColor.white.withAlphaComponent(0.96)
         recordingLabel.font = NSFont.monospacedSystemFont(ofSize: 8, weight: .semibold)
         recordingLabel.frame = NSRect(x: 21, y: frame.height - 22, width: 36, height: 10)
@@ -64,6 +68,15 @@ class RecordingWindow: NSPanel {
         deviceLabel.lineBreakMode = .byTruncatingMiddle
         deviceLabel.autoresizingMask = [.width, .minYMargin, .minXMargin]
         contentView.addSubview(deviceLabel)
+
+        let hintLabel = NSTextField(labelWithString: hintText)
+        hintLabel.textColor = NSColor.white.withAlphaComponent(0.5)
+        hintLabel.font = NSFont.systemFont(ofSize: 8, weight: .regular)
+        hintLabel.alignment = .right
+        hintLabel.frame = NSRect(x: 10, y: 6, width: frame.width - 20, height: 10)
+        hintLabel.lineBreakMode = .byTruncatingTail
+        hintLabel.autoresizingMask = [.width, .maxYMargin]
+        contentView.addSubview(hintLabel)
         
         contentView.wantsLayer = true
         contentView.layer?.cornerRadius = 12

@@ -4,20 +4,20 @@
   <img src="./logo-settings.png" alt="Parselton logo" width="180" />
 </p>
 
-Native macOS application for system-wide speech-to-text and text-to-speech conversion.
+Native macOS application for system-wide speech-to-text and text-to-speech conversion, plus quick voice launches into brute sessions.
 
 Speech-to-text depends on the [A2gent brute backend](https://github.com/A2gent/brute) being installed and running locally.
 
 ## Features
 
-- **System-wide keyboard shortcut** (default: F12)
+- **Two system-wide keyboard shortcuts** (default: F12 for paste/TTS, F11 for brute voice sessions)
 - **Menu bar presence** with configuration window
 - **Smart context detection:**
   - Text selected → Text-to-Speech (plays audio)
   - No selection → Speech-to-Text (records audio, transcribes, pastes result)
 - **Floating recording window** with live waveform visualization
 - **Floating playback window** for text-to-speech with stop, pause, and seek controls
-- **Higher quality TTS path** via optional `edge-tts`, with automatic fallback to native macOS speech
+- **Selectable TTS engines** in Settings: automatic, native macOS speech, and `edge-tts`
 - **Native macOS integration** using Swift and AppKit
 
 ## Requirements
@@ -26,8 +26,7 @@ Speech-to-text depends on the [A2gent brute backend](https://github.com/A2gent/b
 - Xcode 14.0+
 - Microphone permissions
 - Accessibility permissions (for global shortcuts and text insertion)
-- Optional: `edge-tts` in `PATH` or a common local install location for better text-to-speech quality
-
+- Optional: `edge-tts` in `PATH` or a common local install location for higher-quality online TTS
 ## Quick Start
 
 1. **Start the backend** (required for speech-to-text):
@@ -51,6 +50,7 @@ Speech-to-text depends on the [A2gent brute backend](https://github.com/A2gent/b
 6. **Test it**:
    - Select any text → Press F12 → Listen to speech
    - No selection → Press F12 → Speak → Press F12 again → Text pasted
+   - Press F11 → Speak → Press F11 again → New brute session starts from the transcript
 
 ## Setup
 
@@ -80,12 +80,12 @@ Test the endpoint:
 
 ### Text-to-Speech Privacy
 
-Parselton supports two text-to-speech paths:
+Parselton supports:
 
-- `edge-tts` for higher-quality voices
+- `edge-tts` for higher-quality voices via Microsoft online TTS
 - native macOS speech synthesis as a local fallback
 
-When `edge-tts` is available, the selected text is sent to Microsoft's online text-to-speech service to generate audio. If you prefer to keep text-to-speech local-only for privacy reasons, do not install `edge-tts` or remove it from `PATH`, and Parselton will fall back to macOS speech synthesis instead.
+When `edge-tts` is selected or used by the automatic engine, the selected text is sent to Microsoft's online text-to-speech service to generate audio. If you prefer local-only speech synthesis, choose the native macOS voice option in Settings.
 
 ## Architecture
 
@@ -113,11 +113,12 @@ flowchart TD
 ## Usage
 
 1. Click menu bar icon to configure settings
-2. Press configured shortcut (default: F12):
+2. Press configured shortcut:
    - **With text selected:** Converts text to speech and plays audio
    - **Without selection:** Opens recording window
 3. While recording, press shortcut again to stop and transcribe
 4. Transcribed text is automatically pasted at cursor position
+5. Use the brute session shortcut to record a fresh prompt and send it straight into a new brute session
 
 ## License
 

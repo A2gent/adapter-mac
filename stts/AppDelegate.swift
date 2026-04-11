@@ -7,6 +7,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case active
     }
 
+    private enum RecordingMode {
+        case pasteTranscription
+        case bruteSession
+    }
+
     var statusItem: NSStatusItem?
     var menu: NSMenu?
     var shortcutMonitor: GlobalShortcutMonitor?
@@ -15,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var playbackWindow: PlaybackWindow?
     var isRecording = false
     var isPlayingTextToSpeech = false
+    private var recordingMode: RecordingMode?
     private var hasShownAccessibilityClipboardNotice = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -63,8 +69,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupGlobalShortcut() {
         shortcutMonitor = GlobalShortcutMonitor()
-        shortcutMonitor?.onShortcutPressed = { [weak self] in
-            self?.handleShortcutPressed()
+        shortcutMonitor?.onParseltonShortcutPressed = { [weak self] in
+            self?.handleParseltonShortcutPressed()
+        }
+        shortcutMonitor?.onBruteSessionShortcutPressed = { [weak self] in
+            self?.handleBruteSessionShortcutPressed()
+        }
+        shortcutMonitor?.onCancelRequested = { [weak self] in
+            self?.handleCancelRequested()
         }
         shortcutMonitor?.start()
     }
@@ -88,15 +100,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let devices = audioService.availableInputDevices()
-        let shortcuts = shortcutMonitor.availableShortcuts()
-        let currentShortcut = shortcutMonitor.currentShortcut()
+        let shortcutKeys = GlobalShortcutMonitor.availableShortcutKeys()
+        let currentParseltonShortcut = shortcutMonitor.currentShortcut(for: .parselton)
+        let currentBruteShortcut = shortcutMonitor.currentShortcut(for: .bruteSession)
 
         let whisperService = WhisperService.shared
-        let accessibilityStatus = AccessibilityService.isAccessibilityEnabled() ? "Granted" : "Not Detected"
 
         let alert = NSAlert()
         alert.messageText = "Settings"
-        alert.informativeText = "Choose the microphone, global shortcut, and transcription backend Parselton should use."
+        alert.informativeText = "Choose the microphone, shortcuts, speech backend, and text-to-speech engine Parselton should use."
         alert.alertStyle = .informational
         if let settingsLogo = imageResource(named: "logo-settings") {
             let alertIcon = settingsLogo.copy() as? NSImage ?? settingsLogo
@@ -132,21 +144,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         contentStack.addArrangedSubview(microphonePopup)
 
-        let shortcutLabel = NSTextField(labelWithString: "Keyboard Shortcut")
-        shortcutLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        contentStack.addArrangedSubview(shortcutLabel)
+        let parseltonShortcutControls = makeShortcutEditor(
+            label: "Parselton Shortcut",
+            shortcut: currentParseltonShortcut,
+            keyOptions: shortcutKeys
+        )
+        contentStack.addArrangedSubview(parseltonShortcutControls.container)
 
-        let shortcutPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 28), pullsDown: false)
-        for shortcut in shortcuts {
-            shortcutPopup.addItem(withTitle: shortcut.title)
-            shortcutPopup.lastItem?.representedObject = NSNumber(value: shortcut.keyCode)
-        }
-        if let shortcutIndex = shortcutPopup.itemArray.firstIndex(where: {
-            ($0.representedObject as? NSNumber)?.uint32Value == currentShortcut.keyCode
-        }) {
-            shortcutPopup.selectItem(at: shortcutIndex)
-        }
-        contentStack.addArrangedSubview(shortcutPopup)
+        let bruteShortcutControls = makeShortcutEditor(
+            label: "Brute Session Shortcut",
+            shortcut: currentBruteShortcut,
+            keyOptions: shortcutKeys
+        )
+        contentStack.addArrangedSubview(bruteShortcutControls.container)
 
         let endpointLabel = NSTextField(labelWithString: "Backend URL")
         endpointLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
@@ -157,17 +167,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         endpointField.stringValue = whisperService.apiEndpoint
         contentStack.addArrangedSubview(endpointField)
 
-        let accessibilityLabel = NSTextField(labelWithString: "Accessibility")
-        accessibilityLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        contentStack.addArrangedSubview(accessibilityLabel)
+        let ttsLabel = NSTextField(labelWithString: "TTS Engine")
+        ttsLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        contentStack.addArrangedSubview(ttsLabel)
 
-        let accessibilityValue = NSTextField(labelWithString: "\(accessibilityStatus) for \(Bundle.main.bundlePath)")
-        accessibilityValue.textColor = .secondaryLabelColor
-        accessibilityValue.lineBreakMode = .byTruncatingMiddle
-        accessibilityValue.frame = NSRect(x: 0, y: 0, width: 320, height: 36)
-        contentStack.addArrangedSubview(accessibilityValue)
+        let ttsPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 28), pullsDown: false)
+        for engine in TTSEngine.allCases {
+            ttsPopup.addItem(withTitle: engine.title)
+            ttsPopup.lastItem?.representedObject = engine.rawValue
+        }
 
-        let accessoryContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 230))
+        if let currentIndex = ttsPopup.itemArray.firstIndex(where: {
+            ($0.representedObject as? String) == audioService.selectedTTSEngine().rawValue
+        }) {
+            ttsPopup.selectItem(at: currentIndex)
+        }
+        contentStack.addArrangedSubview(ttsPopup)
+
+        let ttsStatus = NSTextField(labelWithString: audioService.ttsEngineAvailabilitySummary())
+        ttsStatus.textColor = .secondaryLabelColor
+        ttsStatus.lineBreakMode = .byWordWrapping
+        ttsStatus.maximumNumberOfLines = 0
+        contentStack.addArrangedSubview(ttsStatus)
+
+        let accessoryContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 330))
         accessoryContainer.translatesAutoresizingMaskIntoConstraints = false
         accessoryContainer.addSubview(contentStack)
 
@@ -185,11 +208,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let selectedID = microphonePopup.selectedItem?.representedObject as? String
             audioService.selectInputDevice(id: selectedID)
 
-            if let selectedKeyCode = (shortcutPopup.selectedItem?.representedObject as? NSNumber)?.uint32Value {
-                shortcutMonitor.updateShortcut(keyCode: selectedKeyCode)
+            let parseltonShortcut = shortcutOption(
+                keyPopup: parseltonShortcutControls.keyPopup,
+                commandCheckbox: parseltonShortcutControls.commandCheckbox,
+                optionCheckbox: parseltonShortcutControls.optionCheckbox,
+                controlCheckbox: parseltonShortcutControls.controlCheckbox,
+                shiftCheckbox: parseltonShortcutControls.shiftCheckbox
+            )
+            let bruteShortcut = shortcutOption(
+                keyPopup: bruteShortcutControls.keyPopup,
+                commandCheckbox: bruteShortcutControls.commandCheckbox,
+                optionCheckbox: bruteShortcutControls.optionCheckbox,
+                controlCheckbox: bruteShortcutControls.controlCheckbox,
+                shiftCheckbox: bruteShortcutControls.shiftCheckbox
+            )
+
+            if parseltonShortcut == bruteShortcut {
+                showError("Parselton and brute session shortcuts must be different.")
+                return
             }
 
+            shortcutMonitor.updateShortcut(for: .parselton, shortcut: parseltonShortcut)
+            shortcutMonitor.updateShortcut(for: .bruteSession, shortcut: bruteShortcut)
+
             whisperService.updateAPIEndpoint(endpointField.stringValue)
+
+            if let rawValue = ttsPopup.selectedItem?.representedObject as? String,
+               let engine = TTSEngine(rawValue: rawValue) {
+                audioService.selectTTSEngine(engine)
+            }
         }
     }
     
@@ -199,7 +246,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Shortcut Handler
     
-    private func handleShortcutPressed() {
+    private func handleParseltonShortcutPressed() {
         if isRecording {
             stopRecording()
         } else if isPlayingTextToSpeech {
@@ -212,21 +259,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     if let selectedText, !selectedText.isEmpty {
                         self.performTextToSpeech(text: selectedText)
                     } else {
-                        self.startRecording()
+                        self.startRecording(mode: .pasteTranscription)
                     }
                 }
             }
         }
     }
+
+    private func handleBruteSessionShortcutPressed() {
+        if isRecording {
+            stopRecording()
+            return
+        }
+        if isPlayingTextToSpeech {
+            stopPlayback()
+        }
+        startRecording(mode: .bruteSession)
+    }
+
+    private func handleCancelRequested() {
+        guard isRecording else { return }
+        cancelRecording()
+    }
     
-    private func startRecording() {
+    private func startRecording(mode: RecordingMode) {
         guard !isRecording else { return }
+        recordingMode = mode
         
         isRecording = true
         updateMenuState()
         
         // Create and show recording window
-        let window = RecordingWindow(deviceName: audioService?.activeInputDeviceName() ?? "No microphone")
+        let window = RecordingWindow(
+            deviceName: audioService?.activeInputDeviceName() ?? "No microphone",
+            titleText: mode == .bruteSession ? "BRUTE" : "REC",
+            hintText: mode == .bruteSession ? "Esc cancel, shortcut send to brute" : "Esc cancel, shortcut paste text"
+        )
         self.recordingWindow = window
         window.show()
         
@@ -235,6 +303,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self = self else { return }
             if !success {
                 self.isRecording = false
+                self.recordingMode = nil
                 self.recordingWindow?.close()
                 self.recordingWindow = nil
                 self.updateMenuState()
@@ -248,6 +317,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         isRecording = false
         updateMenuState()
+        let completedMode = recordingMode
+        recordingMode = nil
         
         // Close recording window immediately
         recordingWindow?.close()
@@ -262,12 +333,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             
-            self.performSpeechToText(audioURL: url)
+            switch completedMode {
+            case .bruteSession:
+                self.performSpeechToBruteSession(audioURL: url)
+            case .pasteTranscription, .none:
+                self.performSpeechToText(audioURL: url)
+            }
         }
     }
 
+    private func cancelRecording() {
+        guard isRecording else { return }
+
+        isRecording = false
+        recordingMode = nil
+        updateMenuState()
+        recordingWindow?.close()
+        recordingWindow = nil
+        audioService?.cancelRecording()
+    }
+
     @objc private func startRecordingFromMenu() {
-        startRecording()
+        startRecording(mode: .pasteTranscription)
     }
 
     @objc private func stopRecordingFromMenu() {
@@ -320,10 +407,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         print("⚠️ Transcription copied to clipboard instead of pasted: \(reason)")
                         if self?.hasShownAccessibilityClipboardNotice == false {
                             self?.hasShownAccessibilityClipboardNotice = true
-                            self?.showError("Transcription was copied to the clipboard because automatic paste is unavailable for this running build. You can still paste manually with Cmd+V. Settings shows the current Accessibility detection status.")
+                            self?.showError("Transcription was copied to the clipboard because automatic paste is unavailable for this running build. You can still paste manually with Cmd+V.")
                         }
                     }
                 case .failure(let error):
+                    self?.showError("Transcription failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func performSpeechToBruteSession(audioURL: URL) {
+        statusItem?.button?.image = menuBarImage(for: .active)
+
+        WhisperService.shared.transcribe(audioURL: audioURL) { [weak self] result in
+            switch result {
+            case .success(let text):
+                let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !prompt.isEmpty else {
+                    DispatchQueue.main.async {
+                        self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
+                    }
+                    return
+                }
+
+                BruteSessionService.shared.startSession(with: prompt) { launchResult in
+                    DispatchQueue.main.async {
+                        self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
+                        if case .failure(let error) = launchResult {
+                            self?.showError("Failed to start brute session: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
                     self?.showError("Transcription failed: \(error.localizedDescription)")
                 }
             }
@@ -376,6 +494,89 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return NSImage(contentsOf: url)
+    }
+
+    private func makeShortcutEditor(
+        label: String,
+        shortcut: ShortcutOption,
+        keyOptions: [ShortcutKeyOption]
+    ) -> (
+        container: NSStackView,
+        keyPopup: NSPopUpButton,
+        commandCheckbox: NSButton,
+        optionCheckbox: NSButton,
+        controlCheckbox: NSButton,
+        shiftCheckbox: NSButton
+    ) {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+
+        let title = NSTextField(labelWithString: label)
+        title.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        stack.addArrangedSubview(title)
+
+        let keyPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 28), pullsDown: false)
+        for option in keyOptions {
+            keyPopup.addItem(withTitle: option.title)
+            keyPopup.lastItem?.representedObject = NSNumber(value: option.keyCode)
+        }
+        if let index = keyPopup.itemArray.firstIndex(where: {
+            ($0.representedObject as? NSNumber)?.uint32Value == shortcut.keyCode
+        }) {
+            keyPopup.selectItem(at: index)
+        }
+        stack.addArrangedSubview(keyPopup)
+
+        let modifiersRow = NSStackView()
+        modifiersRow.orientation = .horizontal
+        modifiersRow.alignment = .centerY
+        modifiersRow.spacing = 10
+
+        let commandCheckbox = NSButton(checkboxWithTitle: "Command", target: nil, action: nil)
+        commandCheckbox.state = shortcut.modifiers & UInt32(cmdKey) != 0 ? .on : .off
+        modifiersRow.addArrangedSubview(commandCheckbox)
+
+        let optionCheckbox = NSButton(checkboxWithTitle: "Option", target: nil, action: nil)
+        optionCheckbox.state = shortcut.modifiers & UInt32(optionKey) != 0 ? .on : .off
+        modifiersRow.addArrangedSubview(optionCheckbox)
+
+        let controlCheckbox = NSButton(checkboxWithTitle: "Control", target: nil, action: nil)
+        controlCheckbox.state = shortcut.modifiers & UInt32(controlKey) != 0 ? .on : .off
+        modifiersRow.addArrangedSubview(controlCheckbox)
+
+        let shiftCheckbox = NSButton(checkboxWithTitle: "Shift", target: nil, action: nil)
+        shiftCheckbox.state = shortcut.modifiers & UInt32(shiftKey) != 0 ? .on : .off
+        modifiersRow.addArrangedSubview(shiftCheckbox)
+
+        stack.addArrangedSubview(modifiersRow)
+
+        return (stack, keyPopup, commandCheckbox, optionCheckbox, controlCheckbox, shiftCheckbox)
+    }
+
+    private func shortcutOption(
+        keyPopup: NSPopUpButton,
+        commandCheckbox: NSButton,
+        optionCheckbox: NSButton,
+        controlCheckbox: NSButton,
+        shiftCheckbox: NSButton
+    ) -> ShortcutOption {
+        let keyCode = (keyPopup.selectedItem?.representedObject as? NSNumber)?.uint32Value ?? UInt32(kVK_F12)
+        var modifiers: UInt32 = 0
+        if commandCheckbox.state == .on {
+            modifiers |= UInt32(cmdKey)
+        }
+        if optionCheckbox.state == .on {
+            modifiers |= UInt32(optionKey)
+        }
+        if controlCheckbox.state == .on {
+            modifiers |= UInt32(controlKey)
+        }
+        if shiftCheckbox.state == .on {
+            modifiers |= UInt32(shiftKey)
+        }
+        return ShortcutOption(keyCode: keyCode, modifiers: modifiers)
     }
 }
 
