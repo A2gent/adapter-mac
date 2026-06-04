@@ -69,8 +69,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupGlobalShortcut() {
         shortcutMonitor = GlobalShortcutMonitor()
-        shortcutMonitor?.onParseltonShortcutPressed = { [weak self] in
-            self?.handleParseltonShortcutPressed()
+        shortcutMonitor?.onAdapterMacShortcutPressed = { [weak self] in
+            self?.handleAdapterMacShortcutPressed()
         }
         shortcutMonitor?.onBruteSessionShortcutPressed = { [weak self] in
             self?.handleBruteSessionShortcutPressed()
@@ -101,14 +101,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let devices = audioService.availableInputDevices()
         let shortcutKeys = GlobalShortcutMonitor.availableShortcutKeys()
-        let currentParseltonShortcut = shortcutMonitor.currentShortcut(for: .parselton)
+        let currentAdapterMacShortcut = shortcutMonitor.currentShortcut(for: .adapterMac)
         let currentBruteShortcut = shortcutMonitor.currentShortcut(for: .bruteSession)
 
         let whisperService = WhisperService.shared
 
         let alert = NSAlert()
         alert.messageText = "Settings"
-        alert.informativeText = "Choose the microphone, shortcuts, speech backend, and text-to-speech engine Parselton should use."
+        alert.informativeText = "Choose the microphone, shortcuts, speech backend, and text-to-speech engine adapter-mac should use."
         alert.alertStyle = .informational
         if let settingsLogo = imageResource(named: "logo-settings") {
             let alertIcon = settingsLogo.copy() as? NSImage ?? settingsLogo
@@ -144,12 +144,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         contentStack.addArrangedSubview(microphonePopup)
 
-        let parseltonShortcutControls = makeShortcutEditor(
-            label: "Parselton Shortcut",
-            shortcut: currentParseltonShortcut,
+        let adapterMacShortcutControls = makeShortcutEditor(
+            label: "adapter-mac Shortcut",
+            shortcut: currentAdapterMacShortcut,
             keyOptions: shortcutKeys
         )
-        contentStack.addArrangedSubview(parseltonShortcutControls.container)
+        contentStack.addArrangedSubview(adapterMacShortcutControls.container)
 
         let bruteShortcutControls = makeShortcutEditor(
             label: "Brute Session Shortcut",
@@ -208,12 +208,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let selectedID = microphonePopup.selectedItem?.representedObject as? String
             audioService.selectInputDevice(id: selectedID)
 
-            let parseltonShortcut = shortcutOption(
-                keyPopup: parseltonShortcutControls.keyPopup,
-                commandCheckbox: parseltonShortcutControls.commandCheckbox,
-                optionCheckbox: parseltonShortcutControls.optionCheckbox,
-                controlCheckbox: parseltonShortcutControls.controlCheckbox,
-                shiftCheckbox: parseltonShortcutControls.shiftCheckbox
+            let adapterMacShortcut = shortcutOption(
+                keyPopup: adapterMacShortcutControls.keyPopup,
+                commandCheckbox: adapterMacShortcutControls.commandCheckbox,
+                optionCheckbox: adapterMacShortcutControls.optionCheckbox,
+                controlCheckbox: adapterMacShortcutControls.controlCheckbox,
+                shiftCheckbox: adapterMacShortcutControls.shiftCheckbox
             )
             let bruteShortcut = shortcutOption(
                 keyPopup: bruteShortcutControls.keyPopup,
@@ -223,12 +223,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 shiftCheckbox: bruteShortcutControls.shiftCheckbox
             )
 
-            if parseltonShortcut == bruteShortcut {
-                showError("Parselton and brute session shortcuts must be different.")
+            if adapterMacShortcut == bruteShortcut {
+                showError("adapter-mac and brute session shortcuts must be different.")
                 return
             }
 
-            shortcutMonitor.updateShortcut(for: .parselton, shortcut: parseltonShortcut)
+            shortcutMonitor.updateShortcut(for: .adapterMac, shortcut: adapterMacShortcut)
             shortcutMonitor.updateShortcut(for: .bruteSession, shortcut: bruteShortcut)
 
             whisperService.updateAPIEndpoint(endpointField.stringValue)
@@ -246,7 +246,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Shortcut Handler
     
-    private func handleParseltonShortcutPressed() {
+    private func handleAdapterMacShortcutPressed() {
         if isRecording {
             stopRecording()
         } else if isPlayingTextToSpeech {
@@ -472,10 +472,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch state {
         case .idle:
             resourceName = "logo-silent"
-            description = "Parselton Idle"
+            description = "adapter-mac Idle"
         case .active:
             resourceName = "logo-speaking"
-            description = "Parselton Active"
+            description = "adapter-mac Active"
         }
 
         guard let image = imageResource(named: resourceName) else {

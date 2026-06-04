@@ -1,7 +1,7 @@
-# Parselton - Speech To Text & Text To Speech
+# adapter-mac - Speech To Text & Text To Speech
 
 <p align="center">
-  <img src="./logo-settings.png" alt="Parselton logo" width="180" />
+  <img src="./logo-settings.png" alt="adapter-mac logo" width="180" />
 </p>
 
 Native macOS application for system-wide speech-to-text and text-to-speech conversion.
@@ -42,7 +42,7 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
 
 2. **Open in Xcode**:
    ```bash
-   open parselton.xcodeproj
+   open adapter-mac.xcodeproj
    ```
 
 3. **Build and Run** (`Cmd+R` in Xcode)
@@ -62,7 +62,7 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
 
 ### Backend Setup
 
-Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute) for Whisper transcription. Speech-to-text will not work unless that service is running.
+adapter-mac depends on the [A2gent brute backend](https://github.com/A2gent/brute) for Whisper transcription. Speech-to-text will not work unless that service is running.
 
 ```bash
 cd ~/git/a2gent/brute
@@ -86,7 +86,7 @@ Test the endpoint:
 
 ### Text-to-Speech Privacy
 
-Parselton supports:
+adapter-mac supports:
 
 - `edge-tts` for higher-quality voices via Microsoft online TTS
 - native macOS speech synthesis as a local fallback

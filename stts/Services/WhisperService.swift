@@ -302,7 +302,7 @@ final class BruteSessionService {
             createRequest.httpBody = try JSONEncoder().encode(CreateSessionRequest(
                 agent_id: "build",
                 metadata: [
-                    "source": "parselton",
+                    "source": "adapter-mac",
                     "launch_mode": "voice_session"
                 ]
             ))

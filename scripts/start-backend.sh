@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start a2gent backend for Whisper transcription
-# This script should be run before using the Parselton app
+# This script should be run before using the adapter-mac app
 
 BACKEND_DIR="$HOME/git/a2gent/aagent"
 

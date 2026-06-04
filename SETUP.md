@@ -4,8 +4,8 @@
 
 1. **Open in Xcode:**
    ```bash
-   cd ~/git/stts
-   open parselton.xcodeproj
+   cd ~/git/a2gent/adapter-mac
+   open adapter-mac.xcodeproj
    ```
 
 2. **Build and Run:**
@@ -21,7 +21,7 @@
 
 ## Backend Setup (Required for Speech-to-Text)
 
-Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute) for Whisper transcription. Speech-to-text will not work unless that service is running.
+adapter-mac depends on the [A2gent brute backend](https://github.com/A2gent/brute) for Whisper transcription. Speech-to-text will not work unless that service is running.
 
 1. **Start the backend:**
    ```bash
@@ -45,7 +45,7 @@ Parselton depends on the [A2gent brute backend](https://github.com/A2gent/brute)
 
 ```mermaid
 flowchart TD
-    subgraph App["Parselton macOS Menu Bar App"]
+    subgraph App["adapter-mac macOS Menu Bar App"]
         AD["AppDelegate"]
         GSM["GlobalShortcutMonitor<br/>(F12)"]
         AX["AccessibilityService<br/>(AX API)"]
@@ -109,11 +109,11 @@ flowchart TD
 
 ### "Microphone permission denied"
 - Go to System Settings → Privacy & Security → Microphone
-- Enable for "Parselton"
+- Enable for "adapter-mac"
 
 ### "Accessibility permission denied"
 - Go to System Settings → Privacy & Security → Accessibility
-- Enable for "Parselton"
+- Enable for "adapter-mac"
 
 ### "Failed to transcribe"
 - Ensure the brute backend is running on `localhost:5445`

@@ -4,18 +4,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "parselton",
+    name: "adapter-mac",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .executable(
-            name: "parselton",
-            targets: ["parselton"])
+            name: "adapter-mac",
+            targets: ["adapter-mac"])
     ],
     targets: [
         .executableTarget(
-            name: "parselton",
+            name: "adapter-mac",
             path: "stts")
     ]
 )

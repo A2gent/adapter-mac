@@ -2,7 +2,7 @@ import Cocoa
 import Carbon
 
 enum ShortcutAction: Int, CaseIterable {
-    case parselton = 1
+    case adapterMac = 1
     case bruteSession = 2
 }
 
@@ -149,12 +149,12 @@ private final class CarbonEventHandler: NSObject {
 }
 
 final class GlobalShortcutMonitor {
-    private let parseltonShortcutKeyCode = "parseltonShortcutKeyCode"
-    private let parseltonShortcutModifiers = "parseltonShortcutModifiers"
+    private let adapterMacShortcutKeyCode = "adapterMacShortcutKeyCode"
+    private let adapterMacShortcutModifiers = "adapterMacShortcutModifiers"
     private let bruteSessionShortcutKeyCode = "bruteSessionShortcutKeyCode"
     private let bruteSessionShortcutModifiers = "bruteSessionShortcutModifiers"
 
-    var onParseltonShortcutPressed: (() -> Void)? {
+    var onAdapterMacShortcutPressed: (() -> Void)? {
         didSet {
             refreshEventHandlerClosures()
         }
@@ -271,7 +271,7 @@ final class GlobalShortcutMonitor {
         refreshEventHandlerClosures()
         CarbonEventHandler.shared.onCancelRequested = onCancelRequested
         CarbonEventHandler.shared.install(shortcuts: [
-            (.parselton, currentShortcut(for: .parselton)),
+            (.adapterMac, currentShortcut(for: .adapterMac)),
             (.bruteSession, currentShortcut(for: .bruteSession)),
         ])
     }
@@ -289,8 +289,8 @@ final class GlobalShortcutMonitor {
         CarbonEventHandler.shared.onShortcutPressed = { [weak self] action in
             guard let self else { return }
             switch action {
-            case .parselton:
-                self.onParseltonShortcutPressed?()
+            case .adapterMac:
+                self.onAdapterMacShortcutPressed?()
             case .bruteSession:
                 self.onBruteSessionShortcutPressed?()
             }
@@ -299,10 +299,10 @@ final class GlobalShortcutMonitor {
 
     private func storageKeys(for action: ShortcutAction) -> (String, String, ShortcutOption) {
         switch action {
-        case .parselton:
+        case .adapterMac:
             return (
-                parseltonShortcutKeyCode,
-                parseltonShortcutModifiers,
+                adapterMacShortcutKeyCode,
+                adapterMacShortcutModifiers,
                 ShortcutOption(keyCode: UInt32(kVK_F12), modifiers: 0)
             )
         case .bruteSession:

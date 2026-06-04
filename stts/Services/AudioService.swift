@@ -45,8 +45,8 @@ final class AudioService: NSObject {
 
     private let selectedMicrophoneIDKey = "selectedMicrophoneID"
     private let selectedTTSEngineKey = "selectedTTSEngine"
-    private let sessionQueue = DispatchQueue(label: "com.a2gent.parselton.audio.session")
-    private let captureQueue = DispatchQueue(label: "com.a2gent.parselton.audio.capture")
+    private let sessionQueue = DispatchQueue(label: "com.a2gent.adapter-mac.audio.session")
+    private let captureQueue = DispatchQueue(label: "com.a2gent.adapter-mac.audio.capture")
 
     private var captureSession: AVCaptureSession?
     private var captureInput: AVCaptureDeviceInput?
@@ -488,7 +488,7 @@ final class AudioService: NSObject {
 
     private func synthesizeWithSystemVoice(text: String) -> URL? {
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("parselton_tts_\(UUID().uuidString).aiff")
+            .appendingPathComponent("adapter_mac_tts_\(UUID().uuidString).aiff")
 
         let semaphore = DispatchSemaphore(value: 0)
         var didFinishSuccessfully = false
@@ -534,8 +534,8 @@ final class AudioService: NSObject {
         }
 
         let tempDir = FileManager.default.temporaryDirectory
-        let inputURL = tempDir.appendingPathComponent("parselton_tts_\(UUID().uuidString).txt")
-        let outputURL = tempDir.appendingPathComponent("parselton_tts_\(UUID().uuidString).mp3")
+        let inputURL = tempDir.appendingPathComponent("adapter_mac_tts_\(UUID().uuidString).txt")
+        let outputURL = tempDir.appendingPathComponent("adapter_mac_tts_\(UUID().uuidString).mp3")
 
         do {
             try text.write(to: inputURL, atomically: true, encoding: .utf8)

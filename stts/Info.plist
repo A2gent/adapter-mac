@@ -23,8 +23,8 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Parselton needs microphone access to record your speech for transcription.</string>
+	<string>adapter-mac needs microphone access to record your speech for transcription.</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Parselton needs accessibility access to paste transcribed text and detect text selection.</string>
+	<string>adapter-mac needs accessibility access to paste transcribed text and detect text selection.</string>
 </dict>
 </plist>

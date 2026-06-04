@@ -4,8 +4,8 @@
 
 1. **Открыть в Xcode:**
    ```bash
-   cd ~/git/stts
-   open parselton.xcodeproj
+   cd ~/git/a2gent/adapter-mac
+   open adapter-mac.xcodeproj
    ```
 
 2. **Build & Run** (`Cmd+R`)

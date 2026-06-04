@@ -37,7 +37,7 @@
 			1A0000020000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 			1A0000020000000000000013 /* PlaybackWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWindow.swift; sourceTree = "<group>"; };
 			1A0000020000000000000014 /* TTS */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/TTS; sourceTree = "<group>"; };
-			1AFFFFFFFF0000000000001 /* Parselton.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Parselton.app; sourceTree = BUILT_PRODUCTS_DIR; };
+			1AFFFFFFFF0000000000001 /* adapter-mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "adapter-mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,7 +66,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXGroup section */
-		1A0000040000000000000001 /* Parselton */ = {
+		1A0000040000000000000001 /* adapter-mac */ = {
 			isa = PBXGroup;
 			children = (
 				1A0000020000000000000009 /* logo-settings.png */,
@@ -106,7 +106,7 @@
 		1A0000040000000000000004 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1AFFFFFFFF0000000000001 /* Parselton.app */,
+				1AFFFFFFFF0000000000001 /* adapter-mac.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -114,7 +114,7 @@
 		1A0000040000000000000005 = {
 			isa = PBXGroup;
 			children = (
-				1A0000040000000000000001 /* Parselton */,
+				1A0000040000000000000001 /* adapter-mac */,
 				1A0000040000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -122,9 +122,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1A0000050000000000000001 /* Parselton */ = {
+		1A0000050000000000000001 /* adapter-mac */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1A0000060000000000000001 /* Build configuration list for PBXNativeTarget "Parselton" */;
+			buildConfigurationList = 1A0000060000000000000001 /* Build configuration list for PBXNativeTarget "adapter-mac" */;
 			buildPhases = (
 				1A0000070000000000000001 /* Sources */,
 				1A0000030000000000000001 /* Frameworks */,
@@ -134,9 +134,9 @@
 			);
 			dependencies = (
 			);
-			name = Parselton;
-			productName = Parselton;
-			productReference = 1AFFFFFFFF0000000000001 /* Parselton.app */;
+			name = "adapter-mac";
+			productName = "adapter-mac";
+			productReference = 1AFFFFFFFF0000000000001 /* adapter-mac.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -149,7 +149,7 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 			};
-			buildConfigurationList = 1A0000060000000000000002 /* Build configuration list for PBXProject "Parselton" */;
+			buildConfigurationList = 1A0000060000000000000002 /* Build configuration list for PBXProject "adapter-mac" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -162,7 +162,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1A0000050000000000000001 /* Parselton */,
+				1A0000050000000000000001 /* adapter-mac */,
 			);
 		};
 /* End PBXProject section */
@@ -248,8 +248,8 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.a2gent.parselton;
-				PRODUCT_NAME = Parselton;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.a2gent.adapter-mac";
+				PRODUCT_NAME = "adapter-mac";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -312,8 +312,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.a2gent.parselton;
-				PRODUCT_NAME = Parselton;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.a2gent.adapter-mac";
+				PRODUCT_NAME = "adapter-mac";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -336,7 +336,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1A0000060000000000000001 /* Build configuration list for PBXNativeTarget "Parselton" */ = {
+		1A0000060000000000000001 /* Build configuration list for PBXNativeTarget "adapter-mac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A0000090000000000000001 /* Debug */,
@@ -345,7 +345,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1A0000060000000000000002 /* Build configuration list for PBXProject "Parselton" */ = {
+		1A0000060000000000000002 /* Build configuration list for PBXProject "adapter-mac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A0000090000000000000003 /* Debug */,
