@@ -1,5 +1,4 @@
 // swift-tools-version: 5.9
-// This is a placeholder - the actual build is handled by Xcode project
 
 import PackageDescription
 
@@ -16,6 +15,17 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "adapter-mac",
-            path: "stts")
+            path: "stts",
+            exclude: [
+                "Info.plist",
+                "Assets.xcassets",
+                "Resources"
+            ]
+        ),
+        .testTarget(
+            name: "AdapterMacTests",
+            dependencies: ["adapter-mac"],
+            path: "Tests/AdapterMacTests"
+        )
     ]
 )
