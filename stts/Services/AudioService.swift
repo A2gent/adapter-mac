@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 
+@MainActor
 final class AudioService: NSObject {
     weak var delegate: AudioServiceDelegate?
 
@@ -14,7 +15,7 @@ final class AudioService: NSObject {
         wireDelegates()
     }
 
-    static func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
+    static func requestMicrophonePermission(completion: @escaping @MainActor @Sendable (Bool) -> Void) {
         AudioInputDeviceManager.requestMicrophonePermission(completion: completion)
     }
 
@@ -38,6 +39,10 @@ final class AudioService: NSObject {
         inputDeviceManager.activeInputDeviceName()
     }
 
+    func activeInputDeviceConnectionHint() -> String? {
+        inputDeviceManager.activeInputDeviceConnectionHint()
+    }
+
     func systemDefaultInputDeviceName() -> String {
         inputDeviceManager.systemDefaultInputDeviceName()
     }
@@ -58,17 +63,17 @@ final class AudioService: NSObject {
         textToSpeechSynthesizer.ttsEngineAvailabilitySummary()
     }
 
-    func startRecording(completion: @escaping (Bool) -> Void) {
+    func startRecording(completion: @escaping @MainActor @Sendable (Result<Void, AudioRecordingIssue>) -> Void) {
         guard let device = inputDeviceManager.resolvedCaptureDevice() else {
             print("❌ No input device available")
-            completion(false)
+            completion(.failure(.unavailableInput))
             return
         }
 
         recorder.startRecording(device: device, completion: completion)
     }
 
-    func stopRecording(completion: @escaping (URL?) -> Void) {
+    func stopRecording(completion: @escaping @MainActor @Sendable (Result<AudioRecordingOutcome, AudioRecordingIssue>) -> Void) {
         recorder.stopRecording(completion: completion)
     }
 
@@ -76,33 +81,26 @@ final class AudioService: NSObject {
         recorder.cancelRecording()
     }
 
-    func playTextToSpeech(text: String, completion: @escaping (Bool) -> Void) {
+    func playTextToSpeech(text: String, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
         let speechText = AudioTextNormalizer.normalizedSpeechText(from: text)
         guard !speechText.isEmpty else {
             completion(false)
             return
         }
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.delegate?.audioServiceDidBeginPreparingPlayback(self)
-        }
+        delegate?.audioServiceDidBeginPreparingPlayback(self)
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        Task.detached { [weak self, speechText] in
             guard let self else { return }
 
-            if let audioURL = self.textToSpeechSynthesizer.synthesizeTextToAudio(text: speechText) {
-                DispatchQueue.main.async {
-                    if self.playbackController.playGeneratedAudio(url: audioURL) {
-                        completion(true)
-                    } else {
-                        completion(false)
-                    }
+            if let audioURL = await self.textToSpeechSynthesizer.synthesizeTextToAudio(text: speechText) {
+                await MainActor.run {
+                    completion(self.playbackController.playGeneratedAudio(url: audioURL))
                 }
                 return
             }
 
-            DispatchQueue.main.async {
+            await MainActor.run {
                 completion(false)
             }
         }
@@ -140,6 +138,11 @@ final class AudioService: NSObject {
         recorder.onWaveform = { [weak self] data in
             guard let self else { return }
             self.delegate?.audioService(self, didUpdateWaveform: data)
+        }
+
+        recorder.onStateChange = { [weak self] state in
+            guard let self else { return }
+            self.delegate?.audioService(self, didUpdateRecordingState: state)
         }
 
         playbackController.onStartPlayback = { [weak self] duration in

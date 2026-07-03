@@ -1,17 +1,19 @@
-import AppKit
+import AVFoundation
 import Foundation
 
+@MainActor
 final class AudioTextToSpeechSynthesizer: NSObject {
     private let selectedTTSEngineKey = "selectedTTSEngine"
     private let edgeVoice = "en-US-EmmaMultilingualNeural"
     private let edgeRate = "+0%"
     private let edgePitch = "+0Hz"
 
-    private var fileSpeechSynthesizer: NSSpeechSynthesizer?
+    private var fileSpeechSynthesizer: AVSpeechSynthesizer?
     private var fileSpeechCompletion: ((Bool) -> Void)?
     private var fileSpeechOutputURL: URL?
+    private var didResumeFileSpeechCompletion = false
 
-    func selectedTTSEngine() -> TTSEngine {
+    nonisolated func selectedTTSEngine() -> TTSEngine {
         guard let rawValue = UserDefaults.standard.string(forKey: selectedTTSEngineKey),
               let engine = TTSEngine(rawValue: rawValue) else {
             return .automatic
@@ -32,18 +34,22 @@ final class AudioTextToSpeechSynthesizer: NSObject {
         return availability.joined(separator: " | ")
     }
 
-    func synthesizeTextToAudio(text: String) -> URL? {
+    func synthesizeTextToAudio(text: String) async -> URL? {
         switch selectedTTSEngine() {
         case .automatic:
             if let audioURL = synthesizeWithEdgeIfAvailable(text: text) {
                 return audioURL
             }
 
-            return synthesizeWithSystemVoice(text: text)
+            return await synthesizeWithSystemVoice(text: text)
         case .system:
-            return synthesizeWithSystemVoice(text: text)
+            return await synthesizeWithSystemVoice(text: text)
         case .edge:
-            return synthesizeWithEdgeIfAvailable(text: text) ?? synthesizeWithSystemVoice(text: text)
+            if let audioURL = synthesizeWithEdgeIfAvailable(text: text) {
+                return audioURL
+            }
+
+            return await synthesizeWithSystemVoice(text: text)
         }
     }
 
@@ -52,57 +58,84 @@ final class AudioTextToSpeechSynthesizer: NSObject {
             fileSpeechSynthesizer = nil
             fileSpeechCompletion = nil
             fileSpeechOutputURL = nil
+            didResumeFileSpeechCompletion = false
             return false
         }
 
-        synthesizer.stopSpeaking()
-        fileSpeechSynthesizer = nil
-        let pendingCompletion = fileSpeechCompletion
-        fileSpeechCompletion = nil
-        fileSpeechOutputURL = nil
-        pendingCompletion?(false)
+        synthesizer.stopSpeaking(at: .immediate)
+        completeFileSpeech(success: false)
         return true
     }
 
-    private func synthesizeWithSystemVoice(text: String) -> URL? {
+    private func synthesizeWithSystemVoice(text: String) async -> URL? {
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("adapter_mac_tts_\(UUID().uuidString).aiff")
+            .appendingPathComponent("adapter_mac_tts_\(UUID().uuidString).caf")
 
-        let semaphore = DispatchSemaphore(value: 0)
-        var didFinishSuccessfully = false
+        return await withCheckedContinuation { continuation in
+            var outputFile: AVAudioFile?
+            var didWriteAudio = false
+            var didFinish = false
 
-        DispatchQueue.main.async {
-            self.fileSpeechOutputURL = outputURL
-            self.fileSpeechCompletion = { success in
-                didFinishSuccessfully = success
-                semaphore.signal()
+            fileSpeechOutputURL = outputURL
+            didResumeFileSpeechCompletion = false
+            fileSpeechCompletion = { success in
+                guard !didFinish else { return }
+                didFinish = true
+                continuation.resume(returning: success ? outputURL : nil)
             }
 
-            let synthesizer = NSSpeechSynthesizer(
-                voice: NSSpeechSynthesizer.VoiceName(rawValue: "com.apple.speech.synthesis.voice.Alex")
-            )
-            synthesizer?.delegate = self
-            self.fileSpeechSynthesizer = synthesizer
+            let synthesizer = AVSpeechSynthesizer()
+            fileSpeechSynthesizer = synthesizer
 
-            guard let synthesizer, synthesizer.startSpeaking(text, to: outputURL) else {
-                self.fileSpeechSynthesizer = nil
-                self.fileSpeechOutputURL = nil
-                let completion = self.fileSpeechCompletion
-                self.fileSpeechCompletion = nil
-                completion?(false)
-                return
+            let utterance = AVSpeechUtterance(string: text)
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+
+            synthesizer.write(utterance) { [weak self] buffer in
+                guard let pcmBuffer = buffer as? AVAudioPCMBuffer else {
+                    Task { @MainActor in
+                        self?.completeFileSpeech(success: false)
+                    }
+                    return
+                }
+
+                guard pcmBuffer.frameLength > 0 else {
+                    Task { @MainActor in
+                        self?.completeFileSpeech(success: didWriteAudio)
+                    }
+                    return
+                }
+
+                do {
+                    if outputFile == nil {
+                        outputFile = try AVAudioFile(forWriting: outputURL, settings: pcmBuffer.format.settings)
+                    }
+                    try outputFile?.write(from: pcmBuffer)
+                    didWriteAudio = true
+                } catch {
+                    print("❌ Failed to write system TTS audio: \(error)")
+                    Task { @MainActor in
+                        self?.completeFileSpeech(success: false)
+                    }
+                }
             }
         }
+    }
 
-        _ = semaphore.wait(timeout: .now() + 300)
+    private func completeFileSpeech(success: Bool) {
+        guard !didResumeFileSpeechCompletion else { return }
+        didResumeFileSpeechCompletion = true
 
-        guard didFinishSuccessfully,
-              (try? outputURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map({ $0 > 0 }) == true else {
+        let completion = fileSpeechCompletion
+        let outputURL = fileSpeechOutputURL
+        fileSpeechCompletion = nil
+        fileSpeechSynthesizer = nil
+        fileSpeechOutputURL = nil
+
+        if !success, let outputURL {
             try? FileManager.default.removeItem(at: outputURL)
-            return nil
         }
 
-        return outputURL
+        completion?(success)
     }
 
     private func synthesizeWithEdgeIfAvailable(text: String) -> URL? {
@@ -207,15 +240,5 @@ final class AudioTextToSpeechSynthesizer: NSObject {
         case .edge:
             return edgeBinaryURL() == nil ? "not found" : "available"
         }
-    }
-}
-
-extension AudioTextToSpeechSynthesizer: NSSpeechSynthesizerDelegate {
-    func speechSynthesizer(_ sender: NSSpeechSynthesizer, didFinishSpeaking finishedSpeaking: Bool) {
-        let completion = fileSpeechCompletion
-        fileSpeechCompletion = nil
-        fileSpeechSynthesizer = nil
-        fileSpeechOutputURL = nil
-        completion?(finishedSpeaking)
     }
 }

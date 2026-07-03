@@ -1,6 +1,11 @@
 import Cocoa
 import Carbon
 
+private enum ShortcutEventKind {
+    case keyDown
+    case keyUp
+}
+
 enum ShortcutAction: Int, CaseIterable {
     case adapterMac = 1
     case bruteSession = 2
@@ -25,42 +30,70 @@ struct ShortcutOption: Equatable {
     }
 }
 
+@MainActor
 private final class CarbonEventHandler: NSObject {
     static let shared = CarbonEventHandler()
 
     var onShortcutPressed: ((ShortcutAction) -> Void)?
+    var onShortcutReleased: ((ShortcutAction) -> Void)?
     var onCancelRequested: (() -> Void)?
 
-    private var eventHandler: EventHandlerRef?
+    private var pressedEventHandler: EventHandlerRef?
+    private var releasedEventHandler: EventHandlerRef?
     private var hotKeyRefs: [EventHotKeyRef] = []
-    private var globalKeyMonitor: Any?
-    private var localKeyMonitor: Any?
+    private var globalKeyDownMonitor: Any?
+    private var localKeyDownMonitor: Any?
+    private var globalKeyUpMonitor: Any?
+    private var localKeyUpMonitor: Any?
 
     func install(shortcuts: [(action: ShortcutAction, shortcut: ShortcutOption)]) {
         uninstall()
 
-        var eventSpec = EventTypeSpec(
+        var pressedEventSpec = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
         )
-
-        var handler: EventHandlerRef?
-        let installStatus = InstallEventHandler(
-            GetApplicationEventTarget(),
-            { (_, event, _) -> OSStatus in
-                CarbonEventHandler.shared.handleEvent(event)
-            },
-            1,
-            &eventSpec,
-            nil,
-            &handler
+        var releasedEventSpec = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyReleased)
         )
 
-        guard installStatus == noErr else {
-            print("Failed to install event handler: \(installStatus)")
+        var pressedHandler: EventHandlerRef?
+        let pressedStatus = InstallEventHandler(
+            GetApplicationEventTarget(),
+            { (_, event, _) -> OSStatus in
+                CarbonEventHandler.shared.handleEvent(event, kind: .keyDown)
+            },
+            1,
+            &pressedEventSpec,
+            nil,
+            &pressedHandler
+        )
+
+        guard pressedStatus == noErr else {
+            print("Failed to install pressed event handler: \(pressedStatus)")
             return
         }
-        eventHandler = handler
+        pressedEventHandler = pressedHandler
+
+        var releasedHandler: EventHandlerRef?
+        let releasedStatus = InstallEventHandler(
+            GetApplicationEventTarget(),
+            { (_, event, _) -> OSStatus in
+                CarbonEventHandler.shared.handleEvent(event, kind: .keyUp)
+            },
+            1,
+            &releasedEventSpec,
+            nil,
+            &releasedHandler
+        )
+
+        guard releasedStatus == noErr else {
+            print("Failed to install released event handler: \(releasedStatus)")
+            uninstall()
+            return
+        }
+        releasedEventHandler = releasedHandler
 
         for registration in shortcuts {
             let hotKeyID = EventHotKeyID(signature: OSType(0x53545453), id: UInt32(registration.action.rawValue))
@@ -90,22 +123,34 @@ private final class CarbonEventHandler: NSObject {
         }
         hotKeyRefs.removeAll()
 
-        if let eventHandler {
-            RemoveEventHandler(eventHandler)
-            self.eventHandler = nil
+        if let pressedEventHandler {
+            RemoveEventHandler(pressedEventHandler)
+            self.pressedEventHandler = nil
+        }
+        if let releasedEventHandler {
+            RemoveEventHandler(releasedEventHandler)
+            self.releasedEventHandler = nil
         }
 
-        if let globalKeyMonitor {
-            NSEvent.removeMonitor(globalKeyMonitor)
-            self.globalKeyMonitor = nil
+        if let globalKeyDownMonitor {
+            NSEvent.removeMonitor(globalKeyDownMonitor)
+            self.globalKeyDownMonitor = nil
         }
-        if let localKeyMonitor {
-            NSEvent.removeMonitor(localKeyMonitor)
-            self.localKeyMonitor = nil
+        if let localKeyDownMonitor {
+            NSEvent.removeMonitor(localKeyDownMonitor)
+            self.localKeyDownMonitor = nil
+        }
+        if let globalKeyUpMonitor {
+            NSEvent.removeMonitor(globalKeyUpMonitor)
+            self.globalKeyUpMonitor = nil
+        }
+        if let localKeyUpMonitor {
+            NSEvent.removeMonitor(localKeyUpMonitor)
+            self.localKeyUpMonitor = nil
         }
     }
 
-    private func handleEvent(_ event: EventRef?) -> OSStatus {
+    private func handleEvent(_ event: EventRef?, kind: ShortcutEventKind) -> OSStatus {
         var hotKeyID = EventHotKeyID()
         let status = GetEventParameter(
             event,
@@ -121,7 +166,12 @@ private final class CarbonEventHandler: NSObject {
            hotKeyID.signature == OSType(0x53545453),
            let action = ShortcutAction(rawValue: Int(hotKeyID.id)) {
             DispatchQueue.main.async { [weak self] in
-                self?.onShortcutPressed?(action)
+                switch kind {
+                case .keyDown:
+                    self?.onShortcutPressed?(action)
+                case .keyUp:
+                    self?.onShortcutReleased?(action)
+                }
             }
         }
 
@@ -129,10 +179,17 @@ private final class CarbonEventHandler: NSObject {
     }
 
     private func installCancelMonitor() {
-        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        globalKeyDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handleCancelEvent(event)
         }
-        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        localKeyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleCancelEvent(event)
+            return event
+        }
+        globalKeyUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyUp) { [weak self] event in
+            self?.handleCancelEvent(event)
+        }
+        localKeyUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self] event in
             self?.handleCancelEvent(event)
             return event
         }
@@ -148,6 +205,7 @@ private final class CarbonEventHandler: NSObject {
     }
 }
 
+@MainActor
 final class GlobalShortcutMonitor {
     private let adapterMacShortcutKeyCode = "adapterMacShortcutKeyCode"
     private let adapterMacShortcutModifiers = "adapterMacShortcutModifiers"
@@ -155,6 +213,12 @@ final class GlobalShortcutMonitor {
     private let bruteSessionShortcutModifiers = "bruteSessionShortcutModifiers"
 
     var onAdapterMacShortcutPressed: (() -> Void)? {
+        didSet {
+            refreshEventHandlerClosures()
+        }
+    }
+
+    var onAdapterMacShortcutReleased: (() -> Void)? {
         didSet {
             refreshEventHandlerClosures()
         }
@@ -172,7 +236,7 @@ final class GlobalShortcutMonitor {
         }
     }
 
-    static func availableShortcutKeys() -> [ShortcutKeyOption] {
+    nonisolated static func availableShortcutKeys() -> [ShortcutKeyOption] {
         [
             ShortcutKeyOption(keyCode: UInt32(kVK_Space), title: "Space"),
             ShortcutKeyOption(keyCode: UInt32(kVK_ANSI_A), title: "A"),
@@ -226,11 +290,11 @@ final class GlobalShortcutMonitor {
         ]
     }
 
-    static func keyTitle(for keyCode: UInt32) -> String {
+    nonisolated static func keyTitle(for keyCode: UInt32) -> String {
         availableShortcutKeys().first(where: { $0.keyCode == keyCode })?.title ?? "Key \(keyCode)"
     }
 
-    static func modifierTitles(for modifiers: UInt32) -> [String] {
+    nonisolated static func modifierTitles(for modifiers: UInt32) -> [String] {
         var titles: [String] = []
         if modifiers & UInt32(cmdKey) != 0 {
             titles.append("Command")
@@ -293,6 +357,15 @@ final class GlobalShortcutMonitor {
                 self.onAdapterMacShortcutPressed?()
             case .bruteSession:
                 self.onBruteSessionShortcutPressed?()
+            }
+        }
+        CarbonEventHandler.shared.onShortcutReleased = { [weak self] action in
+            guard let self else { return }
+            switch action {
+            case .adapterMac:
+                self.onAdapterMacShortcutReleased?()
+            case .bruteSession:
+                break
             }
         }
     }

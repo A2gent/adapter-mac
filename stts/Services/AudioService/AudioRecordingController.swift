@@ -1,8 +1,11 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
-final class AudioRecordingController: NSObject {
+// Recording state is coordinated by sessionQueue/captureQueue rather than MainActor.
+// Swift cannot infer that queue confinement, so the controller opts into Sendable manually.
+final class AudioRecordingController: NSObject, @unchecked Sendable {
     var onWaveform: (([Float]) -> Void)?
+    var onStateChange: ((AudioRecordingState) -> Void)?
 
     private let sessionQueue = DispatchQueue(label: "com.a2gent.adapter-mac.audio.session")
     private let captureQueue = DispatchQueue(label: "com.a2gent.adapter-mac.audio.capture")
@@ -16,30 +19,48 @@ final class AudioRecordingController: NSObject {
     private var waveformData: [Float] = []
     private var isRecording = false
 
+    private var recordingStartedAt: Date?
+    private var waveformLevelSum: Float = 0
+    private var waveformLevelPeak: Float = 0
+    private var waveformSampleCount = 0
+    private var hasCapturedAudioSamples = false
+
     func cancelRecording() {
         guard isRecording else { return }
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.isRecording = false
+            self.emitState(.idle)
             self.teardownCaptureSession(cancelWriter: true)
+            self.resetRecordingMetrics()
         }
     }
 
-    func startRecording(device: AVCaptureDevice, completion: @escaping (Bool) -> Void) {
+    func startRecording(device: AVCaptureDevice, completion: @escaping @MainActor @Sendable (Result<Void, AudioRecordingIssue>) -> Void) {
         guard !isRecording else {
-            print("Already recording")
-            completion(false)
+            Task { @MainActor in
+                completion(.failure(.failedToStart))
+            }
             return
         }
 
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
             print("❌ Microphone permission not granted")
-            completion(false)
+            Task { @MainActor in
+                completion(.failure(.failedToStart))
+            }
             return
         }
 
         waveformData.removeAll()
+        resetRecordingMetrics()
+        emitState(.preparing(
+            deviceName: device.localizedName,
+            hint: AudioInputDeviceDescriptor.connectionHint(
+                for: AudioInputDeviceDescriptor.classify(name: device.localizedName)
+            )
+        ))
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
@@ -53,8 +74,9 @@ final class AudioRecordingController: NSObject {
 
                 guard session.canAddInput(input), session.canAddOutput(output) else {
                     print("❌ Failed to attach selected microphone to capture session")
+                    self.emitState(.failed(.unavailableInput))
                     DispatchQueue.main.async {
-                        completion(false)
+                        completion(.failure(.unavailableInput))
                     }
                     return
                 }
@@ -74,8 +96,9 @@ final class AudioRecordingController: NSObject {
 
                 guard writer.canAdd(writerInput) else {
                     print("❌ Failed to configure audio writer")
+                    self.emitState(.failed(.failedToStart))
                     DispatchQueue.main.async {
-                        completion(false)
+                        completion(.failure(.failedToStart))
                     }
                     return
                 }
@@ -95,31 +118,44 @@ final class AudioRecordingController: NSObject {
                 self.assetWriter = writer
                 self.assetWriterInput = writerInput
                 self.recordingURL = tempURL
+                self.recordingStartedAt = Date()
                 self.isRecording = true
 
                 session.startRunning()
 
                 print("📱 Input device: \(device.localizedName)")
                 print("✅ Recording started")
+                self.emitState(.recording(
+                    deviceName: device.localizedName,
+                    hint: AudioInputDeviceDescriptor.connectionHint(
+                        for: AudioInputDeviceDescriptor.classify(name: device.localizedName)
+                    )
+                ))
 
                 DispatchQueue.main.async {
-                    completion(true)
+                    completion(.success(()))
                 }
             } catch {
                 print("❌ Failed to start capture session: \(error)")
                 self.teardownCaptureSession(cancelWriter: true)
+                self.resetRecordingMetrics()
+                self.emitState(.failed(.failedToStart))
                 DispatchQueue.main.async {
-                    completion(false)
+                    completion(.failure(.failedToStart))
                 }
             }
         }
     }
 
-    func stopRecording(completion: @escaping (URL?) -> Void) {
+    func stopRecording(completion: @escaping @MainActor @Sendable (Result<AudioRecordingOutcome, AudioRecordingIssue>) -> Void) {
         guard isRecording else {
-            completion(nil)
+            Task { @MainActor in
+                completion(.failure(.noCapturedAudio))
+            }
             return
         }
+
+        emitState(.finishing)
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
@@ -132,6 +168,7 @@ final class AudioRecordingController: NSObject {
             let writer = self.assetWriter
             let writerInput = self.assetWriterInput
             let fileURL = self.recordingURL
+            let analysis = self.makeRecordingAnalysis(fileURL: fileURL)
 
             self.captureSession = nil
             self.captureInput = nil
@@ -141,38 +178,40 @@ final class AudioRecordingController: NSObject {
             self.recordingURL = nil
 
             guard let writer else {
+                self.resetRecordingMetrics()
+                self.emitState(.failed(.noCapturedAudio))
                 DispatchQueue.main.async {
-                    completion(nil)
+                    completion(.failure(.noCapturedAudio))
                 }
                 return
+            }
+
+            let finish: @Sendable (URL?) -> Void = { finalURL in
+                let result = self.finalizeRecording(fileURL: finalURL, analysis: analysis)
+                DispatchQueue.main.async {
+                    completion(result)
+                }
             }
 
             switch writer.status {
             case .unknown:
                 writer.cancelWriting()
                 print("🛑 Recording stopped: no audio captured")
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
+                finish(nil)
             case .writing:
                 writerInput?.markAsFinished()
+                nonisolated(unsafe) let finishWriter = writer
                 writer.finishWriting {
-                    let success = writer.status == .completed ? fileURL : nil
-                    print("🛑 Recording stopped: \(success?.path ?? "no file")")
-                    DispatchQueue.main.async {
-                        completion(success)
-                    }
+                    let successURL = finishWriter.status == .completed ? fileURL : nil
+                    print("🛑 Recording stopped: \(successURL?.path ?? "no file")")
+                    finish(successURL)
                 }
             case .completed:
                 print("🛑 Recording stopped: \(fileURL?.path ?? "no file")")
-                DispatchQueue.main.async {
-                    completion(fileURL)
-                }
+                finish(fileURL)
             default:
                 print("❌ Writer failed while stopping: \(writer.error?.localizedDescription ?? "unknown error")")
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
+                finish(nil)
             }
         }
     }
@@ -198,12 +237,68 @@ final class AudioRecordingController: NSObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.isRecording else { return }
 
+            self.waveformLevelSum += normalizedLevel
+            self.waveformLevelPeak = max(self.waveformLevelPeak, normalizedLevel)
+            self.waveformSampleCount += 1
+
             self.waveformData.append(normalizedLevel)
             if self.waveformData.count > 100 {
                 self.waveformData.removeFirst()
             }
 
             self.onWaveform?(self.waveformData)
+        }
+    }
+
+    private func makeRecordingAnalysis(fileURL: URL?) -> AudioRecordingAnalysis {
+        let duration = max(0, Date().timeIntervalSince(recordingStartedAt ?? Date()))
+        let averageLevel = waveformSampleCount > 0 ? (waveformLevelSum / Float(waveformSampleCount)) : 0
+        let fileSizeBytes = fileURL.flatMap { url in
+            (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
+        } ?? 0
+
+        return AudioRecordingAnalysis(
+            duration: duration,
+            fileSizeBytes: fileSizeBytes,
+            averageLevel: averageLevel,
+            peakLevel: waveformLevelPeak,
+            hadAudioSamples: hasCapturedAudioSamples,
+            waveformSampleCount: waveformSampleCount
+        )
+    }
+
+    private func finalizeRecording(fileURL: URL?, analysis: AudioRecordingAnalysis) -> Result<AudioRecordingOutcome, AudioRecordingIssue> {
+        defer {
+            resetRecordingMetrics()
+        }
+
+        guard let fileURL else {
+            emitState(.failed(.noCapturedAudio))
+            return .failure(.noCapturedAudio)
+        }
+
+        switch AudioRecordingValidator.validate(analysis) {
+        case .success:
+            emitState(.idle)
+            return .success(AudioRecordingOutcome(fileURL: fileURL, analysis: analysis))
+        case .failure(let issue):
+            try? FileManager.default.removeItem(at: fileURL)
+            emitState(.failed(issue))
+            return .failure(issue)
+        }
+    }
+
+    private func resetRecordingMetrics() {
+        recordingStartedAt = nil
+        waveformLevelSum = 0
+        waveformLevelPeak = 0
+        waveformSampleCount = 0
+        hasCapturedAudioSamples = false
+    }
+
+    private func emitState(_ state: AudioRecordingState) {
+        DispatchQueue.main.async { [weak self] in
+            self?.onStateChange?(state)
         }
     }
 }
@@ -215,6 +310,8 @@ extension AudioRecordingController: AVCaptureAudioDataOutputSampleBufferDelegate
               let writerInput = assetWriterInput else {
             return
         }
+
+        hasCapturedAudioSamples = true
 
         if writer.status == .unknown {
             let startTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)

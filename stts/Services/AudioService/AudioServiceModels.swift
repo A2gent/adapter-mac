@@ -1,7 +1,9 @@
 import Foundation
 
+@MainActor
 protocol AudioServiceDelegate: AnyObject {
     func audioService(_ service: AudioService, didUpdateWaveform data: [Float])
+    func audioService(_ service: AudioService, didUpdateRecordingState state: AudioRecordingState)
     func audioServiceDidBeginPreparingPlayback(_ service: AudioService)
     func audioService(_ service: AudioService, didStartPlaybackWithDuration duration: TimeInterval)
     func audioService(_ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval, isPlaying: Bool)
@@ -9,6 +11,7 @@ protocol AudioServiceDelegate: AnyObject {
 }
 
 extension AudioServiceDelegate {
+    func audioService(_ service: AudioService, didUpdateRecordingState state: AudioRecordingState) {}
     func audioServiceDidBeginPreparingPlayback(_ service: AudioService) {}
     func audioService(_ service: AudioService, didStartPlaybackWithDuration duration: TimeInterval) {}
     func audioService(_ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval, isPlaying: Bool) {}
@@ -19,6 +22,11 @@ struct AudioInputDevice: Equatable {
     let id: String
     let name: String
     let isDefault: Bool
+    let connectionKind: AudioInputConnectionKind
+
+    var connectionHint: String? {
+        AudioInputDeviceDescriptor.connectionHint(for: connectionKind)
+    }
 }
 
 enum TTSEngine: String, CaseIterable {

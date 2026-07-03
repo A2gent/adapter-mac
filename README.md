@@ -10,13 +10,15 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
 ## Features
 - Automatic speech-to-text capture and automatic paste into any focused input with keyboard press (F12)
   - **Floating recording window** with live waveform visualization
+  - **Recording reliability safeguards** for Bluetooth and Continuity microphones, plus short or empty capture detection before transcription
 - Automatic text-to-speech generation of currently selectect text with a keyboard press (also F12)
   - **Floating playback window** for text-to-speech with stop, pause, and seek controls
 - Brute AI agent session creation from speech with a keyboard press(F11)
 - **Smart context detection:**
-  - Text selected → Text-to-Speech (plays audio)
-  - No selection → Speech-to-Text (records audio, transcribes, pastes result)
+  - Text selected -> Text-to-Speech (plays audio)
+  - No selection -> Speech-to-Text (records audio, transcribes, pastes result)
 - **Menu bar presence** with settings window
+  - **Selectable microphones** with clearer labels for built-in, external, Bluetooth, and iPhone Continuity inputs
   - **Selectable TTS engines** in Settings: automatic, native macOS speech, and `edge-tts`
 
 <img width="258" height="114" alt="Screenshot 2026-04-11 at 23 53 53" src="https://github.com/user-attachments/assets/296884fc-498c-4937-8adc-0beaade82f66" />
@@ -122,9 +124,17 @@ flowchart TD
 2. Press configured shortcut:
    - **With text selected:** Converts text to speech and plays audio
    - **Without selection:** Opens recording window
-3. While recording, press shortcut again to stop and transcribe
-4. Transcribed text is automatically pasted at cursor position
-5. Use the brute session shortcut to record a fresh prompt and send it straight into a new brute session
+
+## Recording reliability notes
+
+- Recordings are still written as `m4a` AAC files. This stays compatible with the current brute HTTP uploader and the future local transcription provider.
+- Before transcription, adapter-mac now rejects recordings that are effectively empty, too short to be intentional, or contain no speech-like waveform activity.
+- Bluetooth and iPhone Continuity microphones are surfaced more clearly in Settings and the floating recording HUD because those inputs are more likely to disconnect or switch unexpectedly on macOS.
+3. While recording in toggle mode, press the shortcut again to stop and transcribe
+4. In hold-to-record mode, keep the adapter-mac shortcut held while speaking and release it to stop
+5. Press Escape while recording or playback to cancel immediately
+6. Transcribed text is automatically pasted at cursor position
+7. Use the brute session shortcut to record a fresh prompt and send it straight into a new brute session
 
 ## License
 

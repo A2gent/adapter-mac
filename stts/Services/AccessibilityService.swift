@@ -6,9 +6,12 @@ enum AccessibilityPasteResult {
     case copiedToClipboard(reason: String)
 }
 
+@MainActor
 class AccessibilityService {
     static func requestAccessibilityPermission() {
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        // Avoid reading kAXTrustedCheckOptionPrompt directly: it is imported as a mutable
+        // legacy global and triggers Swift 6 concurrency-safety diagnostics.
+        let options: NSDictionary = ["AXTrustedCheckOptionPrompt": true]
         AXIsProcessTrustedWithOptions(options)
     }
     

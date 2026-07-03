@@ -4,10 +4,12 @@ import Foundation
 final class AudioInputDeviceManager {
     private let selectedMicrophoneIDKey = "selectedMicrophoneID"
 
-    static func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
+    static func requestMicrophonePermission(completion: @escaping @MainActor @Sendable (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
-            completion(true)
+            DispatchQueue.main.async {
+                completion(true)
+            }
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
@@ -15,9 +17,13 @@ final class AudioInputDeviceManager {
                 }
             }
         case .denied, .restricted:
-            completion(false)
+            DispatchQueue.main.async {
+                completion(false)
+            }
         @unknown default:
-            completion(false)
+            DispatchQueue.main.async {
+                completion(false)
+            }
         }
     }
 
@@ -29,12 +35,19 @@ final class AudioInputDeviceManager {
                 AudioInputDevice(
                     id: device.uniqueID,
                     name: device.localizedName,
-                    isDefault: device.uniqueID == defaultID
+                    isDefault: device.uniqueID == defaultID,
+                    connectionKind: Self.connectionKind(for: device)
                 )
             }
             .sorted { lhs, rhs in
                 if lhs.isDefault != rhs.isDefault {
                     return lhs.isDefault
+                }
+
+                let lhsPriority = priority(for: lhs.connectionKind)
+                let rhsPriority = priority(for: rhs.connectionKind)
+                if lhsPriority != rhsPriority {
+                    return lhsPriority < rhsPriority
                 }
 
                 return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
@@ -70,6 +83,10 @@ final class AudioInputDeviceManager {
         activeInputDevice()?.name ?? "No microphone"
     }
 
+    func activeInputDeviceConnectionHint() -> String? {
+        activeInputDevice()?.connectionHint
+    }
+
     func systemDefaultInputDeviceName() -> String {
         if let systemDefault = availableInputDevices().first(where: \.isDefault) {
             return systemDefault.name
@@ -87,18 +104,26 @@ final class AudioInputDeviceManager {
     }
 
     func resolvedCaptureDevice() -> AVCaptureDevice? {
+        let devices = captureDevices()
+
         if let selectedID = selectedInputDeviceID(),
-           let selectedDevice = captureDevices().first(where: { $0.uniqueID == selectedID }) {
+           let selectedDevice = devices.first(where: { $0.uniqueID == selectedID }) {
             return selectedDevice
         }
 
-        return AVCaptureDevice.default(for: .audio) ?? captureDevices().first
+        if let defaultDevice = AVCaptureDevice.default(for: .audio) {
+            return defaultDevice
+        }
+
+        return devices.sorted { lhs, rhs in
+            priority(for: Self.connectionKind(for: lhs)) < priority(for: Self.connectionKind(for: rhs))
+        }.first
     }
 
     private func captureDevices() -> [AVCaptureDevice] {
         let deviceTypes: [AVCaptureDevice.DeviceType]
         if #available(macOS 14.0, *) {
-            deviceTypes = [.builtInMicrophone, .external]
+            deviceTypes = [.microphone, .external]
         } else {
             deviceTypes = [.builtInMicrophone]
         }
@@ -109,6 +134,42 @@ final class AudioInputDeviceManager {
             position: .unspecified
         )
 
-        return discoverySession.devices
+        return deduplicated(devices: discoverySession.devices)
+    }
+
+    private func deduplicated(devices: [AVCaptureDevice]) -> [AVCaptureDevice] {
+        var seenIDs = Set<String>()
+        return devices.filter { device in
+            seenIDs.insert(device.uniqueID).inserted
+        }
+    }
+
+    private static func connectionKind(for device: AVCaptureDevice) -> AudioInputConnectionKind {
+        if device.deviceType == .microphone {
+            return .builtIn
+        }
+
+        if #unavailable(macOS 14.0) {
+            if device.deviceType == .builtInMicrophone {
+                return .builtIn
+            }
+        }
+
+        return AudioInputDeviceDescriptor.classify(name: device.localizedName)
+    }
+
+    private func priority(for connectionKind: AudioInputConnectionKind) -> Int {
+        switch connectionKind {
+        case .builtIn:
+            return 0
+        case .external:
+            return 1
+        case .bluetooth:
+            return 2
+        case .continuity:
+            return 3
+        case .unknown:
+            return 4
+        }
     }
 }

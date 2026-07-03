@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-final class AudioPlaybackController: NSObject {
+final class AudioPlaybackController: NSObject, @unchecked Sendable {
     var onStartPlayback: ((TimeInterval) -> Void)?
     var onUpdatePlaybackPosition: ((TimeInterval, TimeInterval, Bool) -> Void)?
     var onFinishPlayback: (() -> Void)?
