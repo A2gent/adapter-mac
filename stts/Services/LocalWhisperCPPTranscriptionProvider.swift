@@ -194,6 +194,7 @@ final class LocalWhisperCPPTranscriptionProvider: TranscriptionProvider, @unchec
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
+    #endif
 
     private final class SingleUseInputProvider: @unchecked Sendable {
         private let inputBuffer: AVAudioPCMBuffer
@@ -214,7 +215,6 @@ final class LocalWhisperCPPTranscriptionProvider: TranscriptionProvider, @unchec
             return inputBuffer
         }
     }
-    #endif
 
     private static func convertAudioToPCM(fileURL: URL) throws -> [Float] {
         let audioFile = try AVAudioFile(forReading: fileURL)

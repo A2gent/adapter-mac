@@ -20,6 +20,19 @@
 			1A0000010000000000000010 /* logo-speaking.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000011 /* logo-speaking.png */; };
 			1A0000010000000000000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000012 /* Assets.xcassets */; };
 			1A0000010000000000000013 /* TTS in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000014 /* TTS */; };
+			1A0000010000000000000014 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000015 /* AppBootstrap.swift */; };
+			1A0000010000000000000016 /* AudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000016 /* AudioDeviceManager.swift */; };
+			1A0000010000000000000017 /* AudioPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000017 /* AudioPlaybackController.swift */; };
+			1A0000010000000000000018 /* AudioRecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000018 /* AudioRecordingController.swift */; };
+			1A0000010000000000000019 /* AudioRecordingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000019 /* AudioRecordingSupport.swift */; };
+			1A0000010000000000000020 /* AudioServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000020 /* AudioServiceModels.swift */; };
+			1A0000010000000000000021 /* AudioTextNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000021 /* AudioTextNormalizer.swift */; };
+			1A0000010000000000000022 /* AudioTextToSpeechSynthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000022 /* AudioTextToSpeechSynthesizer.swift */; };
+			1A0000010000000000000023 /* AudioWaveform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000023 /* AudioWaveform.swift */; };
+			1A0000010000000000000024 /* LocalFluidAudioTranscriptionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000024 /* LocalFluidAudioTranscriptionProvider.swift */; };
+			1A0000010000000000000025 /* LocalWhisperCPPModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000025 /* LocalWhisperCPPModelCatalog.swift */; };
+			1A0000010000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift */; };
+			1A0000010000000000000027 /* RecordingShortcutSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000027 /* RecordingShortcutSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,7 +50,20 @@
 			1A0000020000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 			1A0000020000000000000013 /* PlaybackWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWindow.swift; sourceTree = "<group>"; };
 			1A0000020000000000000014 /* TTS */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/TTS; sourceTree = "<group>"; };
+			1A0000020000000000000015 /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrap.swift; sourceTree = "<group>"; };
 			1AFFFFFFFF0000000000001 /* adapter-mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "adapter-mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+			1A0000020000000000000016 /* AudioDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioDeviceManager.swift; sourceTree = "<group>"; };
+			1A0000020000000000000017 /* AudioPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioPlaybackController.swift; sourceTree = "<group>"; };
+			1A0000020000000000000018 /* AudioRecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioRecordingController.swift; sourceTree = "<group>"; };
+			1A0000020000000000000019 /* AudioRecordingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioRecordingSupport.swift; sourceTree = "<group>"; };
+			1A0000020000000000000020 /* AudioServiceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioServiceModels.swift; sourceTree = "<group>"; };
+			1A0000020000000000000021 /* AudioTextNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioTextNormalizer.swift; sourceTree = "<group>"; };
+			1A0000020000000000000022 /* AudioTextToSpeechSynthesizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioTextToSpeechSynthesizer.swift; sourceTree = "<group>"; };
+			1A0000020000000000000023 /* AudioWaveform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService/AudioWaveform.swift; sourceTree = "<group>"; };
+			1A0000020000000000000024 /* LocalFluidAudioTranscriptionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFluidAudioTranscriptionProvider.swift; sourceTree = "<group>"; };
+			1A0000020000000000000025 /* LocalWhisperCPPModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperCPPModelCatalog.swift; sourceTree = "<group>"; };
+			1A0000020000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperCPPTranscriptionProvider.swift; sourceTree = "<group>"; };
+			1A0000020000000000000027 /* RecordingShortcutSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingShortcutSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +100,7 @@
 				1A0000020000000000000011 /* logo-speaking.png */,
 				1A0000020000000000000001 /* AppDelegate.swift */,
 				1A0000020000000000000002 /* main.swift */,
+					1A0000020000000000000015 /* AppBootstrap.swift */,
 					1A0000020000000000000008 /* Info.plist */,
 					1A0000020000000000000012 /* Assets.xcassets */,
 					1A0000020000000000000014 /* TTS */,
@@ -90,6 +117,18 @@
 				1A0000020000000000000004 /* AccessibilityService.swift */,
 				1A0000020000000000000005 /* AudioService.swift */,
 				1A0000020000000000000006 /* WhisperService.swift */,
+					1A0000020000000000000016 /* AudioDeviceManager.swift */,
+					1A0000020000000000000017 /* AudioPlaybackController.swift */,
+					1A0000020000000000000018 /* AudioRecordingController.swift */,
+					1A0000020000000000000019 /* AudioRecordingSupport.swift */,
+					1A0000020000000000000020 /* AudioServiceModels.swift */,
+					1A0000020000000000000021 /* AudioTextNormalizer.swift */,
+					1A0000020000000000000022 /* AudioTextToSpeechSynthesizer.swift */,
+					1A0000020000000000000023 /* AudioWaveform.swift */,
+					1A0000020000000000000024 /* LocalFluidAudioTranscriptionProvider.swift */,
+					1A0000020000000000000025 /* LocalWhisperCPPModelCatalog.swift */,
+					1A0000020000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift */,
+					1A0000020000000000000027 /* RecordingShortcutSettings.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -180,6 +219,19 @@
 				1A0000010000000000000006 /* WhisperService.swift in Sources */,
 				1A0000010000000000000007 /* RecordingWindow.swift in Sources */,
 				1A0000010000000000000012 /* PlaybackWindow.swift in Sources */,
+					1A0000010000000000000016 /* AudioDeviceManager.swift in Sources */,
+					1A0000010000000000000017 /* AudioPlaybackController.swift in Sources */,
+					1A0000010000000000000018 /* AudioRecordingController.swift in Sources */,
+					1A0000010000000000000019 /* AudioRecordingSupport.swift in Sources */,
+					1A0000010000000000000020 /* AudioServiceModels.swift in Sources */,
+					1A0000010000000000000021 /* AudioTextNormalizer.swift in Sources */,
+					1A0000010000000000000022 /* AudioTextToSpeechSynthesizer.swift in Sources */,
+					1A0000010000000000000023 /* AudioWaveform.swift in Sources */,
+					1A0000010000000000000024 /* LocalFluidAudioTranscriptionProvider.swift in Sources */,
+					1A0000010000000000000025 /* LocalWhisperCPPModelCatalog.swift in Sources */,
+					1A0000010000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift in Sources */,
+					1A0000010000000000000027 /* RecordingShortcutSettings.swift in Sources */,
+					1A0000010000000000000014 /* AppBootstrap.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,7 +296,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -309,7 +361,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.a2gent.adapter-mac";

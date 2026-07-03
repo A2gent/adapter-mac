@@ -94,13 +94,15 @@ final class TranscriptionProviderTests: XCTestCase {
         XCTAssertEqual(LocalWhisperCPPModelSettings.selectedModelID, WhisperCPPModelCatalog.defaultModel.id)
     }
 
-    func testSelectedLocalWhisperCPPModelPersistsCustomChoice() {
-        let customModel = WhisperCPPModelCatalog.availableModels.first { $0.id != WhisperCPPModelCatalog.defaultModel.id }
+    func testSelectedLocalWhisperCPPModelPersistsCustomChoice() throws {
+        let customModel = try XCTUnwrap(
+            WhisperCPPModelCatalog.availableModels.first { $0.id != WhisperCPPModelCatalog.defaultModel.id }
+        )
 
-        LocalWhisperCPPModelSettings.selectedModelID = customModel?.id
+        LocalWhisperCPPModelSettings.selectedModelID = customModel.id
 
-        XCTAssertEqual(LocalWhisperCPPModelSettings.selectedModelID, customModel?.id)
-        XCTAssertEqual(LocalWhisperCPPModelSettings.selectedModel.id, customModel?.id)
+        XCTAssertEqual(LocalWhisperCPPModelSettings.selectedModelID, customModel.id)
+        XCTAssertEqual(LocalWhisperCPPModelSettings.selectedModel.id, customModel.id)
     }
 
     func testAppDelegateTranscriptionUsesInjectedProviderResult() {
