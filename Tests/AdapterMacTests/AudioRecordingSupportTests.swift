@@ -82,4 +82,9 @@ final class AudioRecordingSupportTests: XCTestCase {
         XCTAssertEqual(AudioRecordingIssue.noSpeechDetected.userMessage, "No speech was detected. Check the selected microphone connection and try again.")
         XCTAssertEqual(AudioRecordingIssue.unavailableInput.userMessage, "The selected microphone is unavailable. Reconnect it or switch to System Default.")
     }
+
+    func testTranscriptionProgressStatesUseVisibleStatusText() {
+        XCTAssertEqual(AudioRecordingState.transcribing.statusText, "Transcribing audio...")
+        XCTAssertEqual(AudioRecordingState.startingBruteSession.statusText, "Starting brute session...")
+    }
 }

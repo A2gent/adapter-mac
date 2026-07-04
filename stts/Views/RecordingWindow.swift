@@ -132,6 +132,14 @@ class RecordingWindow: NSPanel {
             }
         case .finishing:
             statusLabel.stringValue = state.statusText
+        case .transcribing:
+            statusLabel.stringValue = state.statusText
+            hintLabel.stringValue = "Keep the cursor where you want the text pasted. Longer recordings can take a while."
+            waveformView?.updateData([])
+        case .startingBruteSession:
+            statusLabel.stringValue = state.statusText
+            hintLabel.stringValue = "Keep this window open while adapter-mac sends the transcript to brute."
+            waveformView?.updateData([])
         case .failed(let issue):
             statusLabel.stringValue = "Microphone issue"
             hintLabel.stringValue = issue.userMessage

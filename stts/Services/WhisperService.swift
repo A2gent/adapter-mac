@@ -216,40 +216,10 @@ final class WhisperService: TranscriptionProvider, @unchecked Sendable {
     }
 
     private func prepareAudioForUpload(from audioURL: URL) -> PreparedAudioUpload {
-        guard audioURL.pathExtension.lowercased() != "wav" else {
-            return PreparedAudioUpload(url: audioURL, cleanup: {})
-        }
-
-        do {
-            let outputURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("transcribe_\(UUID().uuidString).wav")
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
-            process.arguments = [
-                "-f", "WAVE",
-                "-d", "LEI16",
-                audioURL.path,
-                outputURL.path
-            ]
-
-            try process.run()
-            process.waitUntilExit()
-
-            guard process.terminationStatus == 0,
-                  FileManager.default.fileExists(atPath: outputURL.path) else {
-                print("⚠️ afconvert failed with status \(process.terminationStatus)")
-                try? FileManager.default.removeItem(at: outputURL)
-                return PreparedAudioUpload(url: audioURL, cleanup: {})
-            }
-
-            return PreparedAudioUpload(url: outputURL, cleanup: {
-                try? FileManager.default.removeItem(at: outputURL)
-            })
-        } catch {
-            print("⚠️ Failed to convert audio for upload: \(error)")
-            return PreparedAudioUpload(url: audioURL, cleanup: {})
-        }
+        // Brute now normalizes common compressed audio formats server-side before
+        // whisper.cpp. Uploading the original m4a avoids expanding long recordings
+        // into large WAV payloads that can exceed the HTTP size limit.
+        PreparedAudioUpload(url: audioURL, cleanup: {})
     }
 
     private static func parseTranscription(from data: Data) -> String? {

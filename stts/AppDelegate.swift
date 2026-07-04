@@ -415,8 +415,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.isRecording = false
                 self.recordingMode = nil
                 self.adapterMacShortcutPressStartedAt = nil
-                self.recordingWindow?.close()
-                self.recordingWindow = nil
+                self.closeRecordingWindow()
                 self.updateMenuState()
                 self.showError(issue.userMessage)
             }
@@ -432,8 +431,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingMode = nil
         adapterMacShortcutPressStartedAt = nil
         
-        recordingWindow?.close()
-        recordingWindow = nil
+        // Keep the HUD visible after the user presses the shortcut again. Long
+        // recordings can spend noticeable time finalizing and transcribing, so
+        // closing the window here makes the operation look lost.
+        recordingWindow?.updateRecordingState(.finishing)
         
         audioService?.stopRecording { [weak self] result in
             guard let self = self else { return }
@@ -442,14 +443,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case .success(let outcome):
                 switch completedMode {
                 case .bruteSession:
+                    self.recordingWindow?.updateRecordingState(.startingBruteSession)
                     self.performSpeechToBruteSession(audioURL: outcome.fileURL)
                 case .pasteTranscription, .none:
+                    self.recordingWindow?.updateRecordingState(.transcribing)
                     self.performSpeechToText(audioURL: outcome.fileURL)
                 }
             case .failure(let issue):
+                self.closeRecordingWindow()
                 self.showError(issue.userMessage)
             }
         }
+    }
+
+    private func closeRecordingWindow() {
+        recordingWindow?.close()
+        recordingWindow = nil
     }
 
     private func cancelRecording() {
@@ -459,8 +468,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingMode = nil
         adapterMacShortcutPressStartedAt = nil
         updateMenuState()
-        recordingWindow?.close()
-        recordingWindow = nil
+        closeRecordingWindow()
         audioService?.cancelRecording()
     }
 
@@ -511,6 +519,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         requestTranscription(for: audioURL) { [weak self] result in
             DispatchQueue.main.async {
                 self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
+                self?.closeRecordingWindow()
                 
                 switch result {
                 case .success(let text):
@@ -542,6 +551,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard !prompt.isEmpty else {
                     DispatchQueue.main.async {
                         self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
+                        self?.closeRecordingWindow()
                     }
                     return
                 }
@@ -549,6 +559,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 BruteSessionService.shared.startSession(with: prompt) { launchResult in
                     DispatchQueue.main.async {
                         self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
+                        self?.closeRecordingWindow()
                         if case .failure(let error) = launchResult {
                             self?.showError("Failed to start brute session: \(error.localizedDescription)")
                         }
@@ -557,6 +568,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case .failure(let error):
                 DispatchQueue.main.async {
                     self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
+                    self?.closeRecordingWindow()
                     self?.showError("Transcription failed: \(error.localizedDescription)")
                 }
             }

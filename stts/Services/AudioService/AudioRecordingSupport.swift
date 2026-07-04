@@ -120,6 +120,8 @@ enum AudioRecordingState: Equatable {
     case preparing(deviceName: String, hint: String?)
     case recording(deviceName: String, hint: String?)
     case finishing
+    case transcribing
+    case startingBruteSession
     case failed(AudioRecordingIssue)
 
     var statusText: String {
@@ -132,6 +134,10 @@ enum AudioRecordingState: Equatable {
             return "Recording"
         case .finishing:
             return "Finalizing recording..."
+        case .transcribing:
+            return "Transcribing audio..."
+        case .startingBruteSession:
+            return "Starting brute session..."
         case .failed(let issue):
             return issue.userMessage
         }
