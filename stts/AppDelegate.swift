@@ -173,6 +173,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defaultDeviceName: audioService.systemDefaultInputDeviceName(),
             ttsAvailability: audioService.ttsEngineAvailabilitySummary())
         model.voiceStatus = voiceStatus
+        model.voiceModelState = voiceController?.modelState ?? .idle
+        model.onCancelVoiceLoading = { [weak self] in self?.voiceController?.cancelModelLoading() }
+        model.onRetryVoiceLoading = { [weak self] in self?.voiceController?.retryModelLoading() }
         model.onSave = { [weak self] draft in
             // Validate the complete draft before changing any persisted setting.
             guard draft.validationMessage == nil else { return }
@@ -184,7 +187,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             WhisperService.shared.updateAPIEndpoint(draft.endpoint)
             audioService.selectTTSEngine(draft.ttsEngine)
             draft.voice.save()
-            self?.voiceController?.configure(draft.voice)
+            self?.voiceController?.configure(draft.voice, deviceID: draft.inputDeviceID)
         }
         model.onToggleRecording = { [weak self] in
             guard let self else { return }
@@ -602,8 +605,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.statusItem?.button?.toolTip = "A²gent · \(status)"
             self.statusItem?.button?.title = listening ? " •" : ""
         }
+        controller.onModelState = { [weak self] state in
+            self?.settingsController?.model.voiceModelState = state
+        }
         voiceController = controller
-        controller.configure(VoiceSettings.load())
+        controller.configure(VoiceSettings.load(), deviceID: AudioInputDeviceManager().selectedInputDeviceID())
     }
 
     private func updateMenuState() {

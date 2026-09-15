@@ -4,6 +4,13 @@ import AppKit
 @MainActor
 final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
     var onStatus: ((String, Bool) -> Void)?
+    var onModelState: ((VoiceModelLoadState) -> Void)?
+    private(set) var modelState: VoiceModelLoadState = .idle {
+        didSet { onModelState?(modelState) }
+    }
+    private var configured = false
+    private var deviceID: String?
+    private var startupID = UUID()
     private let recognition = LocalVoiceRecognition()
     private let speaker = AVSpeechSynthesizer()
     private let service = BruteSessionService()
@@ -39,12 +46,16 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         recognition.onError = { [weak self] error in self?.fail(error) }
     }
 
-    func configure(_ settings: VoiceSettings) {
+    func configure(_ settings: VoiceSettings, deviceID: String? = nil) {
+        // Saving unrelated settings must not interrupt a command or restart model preparation.
+        guard !configured || self.settings != settings || self.deviceID != deviceID else { return }
+        configured = true
+        self.deviceID = deviceID
         self.settings = settings
         enabled = settings.enabled
         failed = false
         machine = VoiceCommandState(settings: settings)
-        startup?.cancel()
+        stopStartup()
         recognition.stop()
         timer?.cancel()
         speaker.stopSpeaking(at: .immediate)
@@ -57,6 +68,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             work = nil
             pending.removeAll()
             overlay?.orderOut(nil)
+            modelState = .idle
             onStatus?("Voice listening off", false)
             return
         }
@@ -82,7 +94,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         guard value != suspended else { return }
         suspended = value
         if value {
-            startup?.cancel()
+            stopStartup()
+            if modelState.isLoading { modelState = .idle }
             recognition.stop()
             machine.reset()
             speaker.stopSpeaking(at: .immediate)
@@ -138,20 +151,54 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         window.orderFrontRegardless()
     }
 
+    private func stopStartup() {
+        startupID = UUID()
+        startup?.cancel()
+        startup = nil
+    }
+
+    func cancelModelLoading() {
+        guard modelState.isLoading else { return }
+        stopStartup()
+        recognition.stop()
+        failed = true
+        modelState = .cancelled
+        onStatus?("Voice setup cancelled. Retry when ready.", false)
+    }
+
+    func retryModelLoading() {
+        guard enabled, modelState.canRetry else { return }
+        failed = false
+        overlay?.orderOut(nil)
+        modelState = .idle
+        resumeListening()
+    }
+
     private func resumeListening() {
         guard enabled, !suspended, !speaking, !failed else { return }
-        startup?.cancel()
-        onStatus?("Loading local voice models (first use downloads ~500 MB)…", false)
+        stopStartup()
+        let id = startupID
+        modelState = .loading("Checking microphone permission and cached voice models…", nil)
+        onStatus?("Starting local voice listening…", false)
         startup = Task { [weak self] in
             guard let self else { return }
             do {
                 try await self.recognition.start(
-                    settings: self.settings,
-                    deviceID: AudioInputDeviceManager().selectedInputDeviceID())
-                guard !Task.isCancelled, self.enabled, !self.suspended, !self.failed else { return }
+                    settings: self.settings, deviceID: self.deviceID,
+                    onProgress: { [weak self] state in
+                        Task { @MainActor in
+                            guard let self, self.startupID == id, self.modelState.isLoading else { return }
+                            self.modelState = state
+                        }
+                    })
+                guard !Task.isCancelled, self.startupID == id, self.enabled, !self.suspended, !self.failed else {
+                    return
+                }
+                self.startup = nil
+                self.modelState = .ready
                 self.onStatus?("Listening locally for \(self.settings.agentName)", true)
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.startupID == id else { return }
                 self.fail(error.localizedDescription)
             }
         }
@@ -338,7 +385,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
 
     private func fail(_ message: String) {
         failed = true
-        startup?.cancel()
+        stopStartup()
+        modelState = .failed(message)
         recognition.stop()
         let window = window()
         if machine.listening { window.model.text = machine.text }

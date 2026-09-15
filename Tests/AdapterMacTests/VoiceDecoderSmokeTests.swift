@@ -29,7 +29,9 @@ final class VoiceDecoderSmokeTests: XCTestCase {
         }
         XCTAssertTrue(speechDetected)
         let text = try await decoder.transcribe(samples, language: "ru", vocabulary: "Цезарь. приём, конец команды")
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var settings = VoiceSettings()
+        settings.agentName = "Цезарь"
+        var machine = VoiceCommandState(settings: settings)
         let events = machine.receive(text, now: 0)
         XCTAssertTrue(events.contains(.activated), "Wake word absent from fixture transcript: \(text)")
         XCTAssertTrue(

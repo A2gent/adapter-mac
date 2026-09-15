@@ -185,3 +185,14 @@ Manual acceptance (not replaced by fixture tests):
 - [ ] Verify the HUD in full-screen apps/multiple Spaces, keyboard focus preservation, screen lock/sleep/wake recovery, and local Russian voice availability.
 
 Lint task files with `xcrun swift-format lint --strict` followed by their Swift paths. Full repository lint is `xcrun swift-format lint --strict --recursive stts Tests`; unrelated pre-existing formatting debt is tracked separately.
+
+### Voice settings regression verification (2026-09-15)
+
+- Local Debug app: keyboard edit of agent name persisted after closing/reopening Settings; restored to Brute.
+- Command and Reply appear as separate cards. Decorative card borders do not intercept field clicks.
+- Cancel during cached-model startup exposes Retry. Saving unchanged settings leaves setup cancelled; Retry reaches Listening locally for Brute.
+- Five consecutive saves while listening preserve ready status without restarting model preparation.
+- Background listening was disabled after the manual check.
+- `VOICE_SMOKE_AUDIO="$PWD/build/voice-smoke/russian.wav" swift test`: 78 tests pass, including real Whisper/VAD decoding (no microphone fixture recording).
+- Xcode Debug build and strict swift-format lint on changed Swift files pass. Repository-wide formatting debt remains tracked as A-39.
+- Cold network download UI was not exercised manually because models were already cached. Preparation tests cover cancellation reaching the loader, immediate retry serialization, retry after failure, and reuse of successful preparation. Do not delete the user's cached models to test downloads.

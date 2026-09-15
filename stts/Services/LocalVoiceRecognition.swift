@@ -111,15 +111,19 @@ final class LocalVoiceRecognition {
     private var generation = UUID()
     private(set) var decoding = false
 
-    func start(settings: VoiceSettings, deviceID: String?) async throws {
+    func start(
+        settings: VoiceSettings, deviceID: String?,
+        onProgress: @escaping @Sendable (VoiceModelLoadState) -> Void = { _ in }
+    ) async throws {
         stop()
         let generation = self.generation
         let allowed = await withCheckedContinuation { continuation in
             AudioService.requestMicrophonePermission { continuation.resume(returning: $0) }
         }
+        try Task.checkCancellation()
         guard generation == self.generation else { return }
         guard allowed else { throw SessionServiceError.message("Allow microphone access in macOS Privacy & Security.") }
-        try await decoder.prepare()
+        try await decoder.prepare(onProgress: onProgress)
         guard generation == self.generation, !Task.isCancelled else { return }
         await decoder.resetVAD()
         guard generation == self.generation, !Task.isCancelled else { return }
@@ -153,7 +157,7 @@ final class LocalVoiceRecognition {
                 if !incoming.isEmpty { lastAudio = ProcessInfo.processInfo.systemUptime }
                 guard ProcessInfo.processInfo.systemUptime - lastAudio < 5 else {
                     throw SessionServiceError.message(
-                        "No audio received. Check the microphone and save voice settings again.")
+                        "No audio received. Check the microphone and press Retry in voice settings.")
                 }
                 pending.append(contentsOf: incoming)
                 while pending.count >= 4096 {

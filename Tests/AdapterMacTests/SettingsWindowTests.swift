@@ -99,6 +99,33 @@ final class SettingsWindowTests: XCTestCase {
                 atPath: html.deletingLastPathComponent().appendingPathComponent("caesar-sphere.js").path))
     }
 
+    func testDefaultAgentNameIsBrute() {
+        let model = makeModel()
+        XCTAssertEqual(model.draft.voice.agentName, "Brute")
+    }
+
+    func testVoiceModelStateDefaultsAndCallbacks() {
+        let model = makeModel()
+        XCTAssertEqual(model.voiceModelState, .idle)
+        var cancelled = false
+        var retried = false
+        model.onCancelVoiceLoading = { cancelled = true }
+        model.onRetryVoiceLoading = { retried = true }
+        model.onCancelVoiceLoading?()
+        model.onRetryVoiceLoading?()
+        XCTAssertTrue(cancelled)
+        XCTAssertTrue(retried)
+    }
+
+    func testVoiceFieldsStayEditableWhileModelLoads() {
+        let model = makeModel()
+        model.voiceModelState = .loading("Downloading models…", 0.25)
+        model.draft.voice.agentName = "Custom Agent"
+        model.draft.voice.endPhrases = "done, stop"
+        XCTAssertEqual(model.draft.voice.agentName, "Custom Agent")
+        XCTAssertEqual(model.draft.voice.endPhrases, "done, stop")
+    }
+
     func testBundledSphereLoadsInWebKit() async throws {
         _ = NSApplication.shared
         NSWindow.allowsAutomaticWindowTabbing = false

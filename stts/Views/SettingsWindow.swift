@@ -16,6 +16,7 @@ final class SettingsModel: ObservableObject {
     @Published var message: String?
     @Published var saved = false
     @Published var voiceStatus = "Voice listening off"
+    @Published var voiceModelState: VoiceModelLoadState = .idle
     let devices: [AudioInputDevice]
     let defaultDeviceName: String
     let ttsAvailability: String
@@ -24,6 +25,8 @@ final class SettingsModel: ObservableObject {
     var onStopPlayback: (() -> Void)?
     var onCancel: (() -> Void)?
     var onNewSession: (() -> Void)?
+    var onCancelVoiceLoading: (() -> Void)?
+    var onRetryVoiceLoading: (() -> Void)?
 
     init(draft: SettingsDraft, devices: [AudioInputDevice], defaultDeviceName: String, ttsAvailability: String) {
         self.draft = draft
@@ -266,26 +269,47 @@ private struct SettingsView: View {
             card("Background listening", symbol: "ear") {
                 Toggle("Listen while the app is running", isOn: $model.draft.voice.enabled)
                 Text(model.voiceStatus).font(.caption).foregroundStyle(.secondary)
-                TextField("Agent name / wake phrase", text: $model.draft.voice.agentName)
+                if model.voiceModelState.isLoading {
+                    Text(model.voiceModelState.message).font(.caption).foregroundStyle(.secondary)
+                    if let progress = model.voiceModelState.progress {
+                        ProgressView(value: progress)
+                    } else {
+                        ProgressView()
+                    }
+                    Button("Cancel loading") { model.onCancelVoiceLoading?() }
+                } else if model.voiceModelState.canRetry {
+                    Text(model.voiceModelState.message).font(.caption).foregroundStyle(.secondary)
+                    Button("Retry") { model.onRetryVoiceLoading?() }
+                }
+                Text("Agent name / wake phrase").font(.subheadline)
+                TextField("Brute", text: $model.draft.voice.agentName)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Agent name")
                 Picker("Recognition language", selection: $model.draft.voice.localeIdentifier) {
                     Text("Русский").tag("ru-RU")
                     Text("English (US)").tag("en-US")
                 }
                 Text(
-                    "Say the name before every command. Uses the selected microphone and local multilingual whisper.cpp and voice activity detection. No cloud fallback or audio files. First use downloads models (~500 MB) from Hugging Face."
+                    "Say the agent name before every command. Uses the selected microphone with local whisper.cpp and voice activity detection. No cloud fallback or audio files. First use downloads models (~500 MB) from Hugging Face."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
-            card("Command and reply", symbol: "bubble.left.and.bubble.right") {
+            card("Command", symbol: "text.bubble") {
                 TextField("End phrases (comma-separated)", text: $model.draft.voice.endPhrases)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("End phrases")
                 Stepper(
                     "Send after \(Int(model.draft.voice.silenceSeconds)) seconds without speech",
                     value: $model.draft.voice.silenceSeconds, in: 3...30)
+                Text(
+                    "Each command is limited to 2 minutes. Say ‘новая сессия’ to start another conversation or ‘отмена’ to discard a command."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            card("Reply", symbol: "speaker.wave.2") {
                 Toggle("Speak agent replies (local system voice)", isOn: $model.draft.voice.speakReplies)
                 Text(
-                    "The microphone pauses during replies and F11/F12 recording or playback. Each command is limited to 2 minutes. Say ‘новая сессия’ to start another conversation or ‘отмена’ to discard a command."
+                    "The microphone pauses during replies and while F11/F12 recording or playback is active."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -330,7 +354,7 @@ private struct SettingsView: View {
             content()
         }.frame(maxWidth: .infinity, alignment: .leading).padding(18)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.primary.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.primary.opacity(0.06)).allowsHitTesting(false))
     }
 
     private var footer: some View {

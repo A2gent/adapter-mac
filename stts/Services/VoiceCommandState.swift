@@ -1,8 +1,40 @@
 import Foundation
 
+enum VoiceModelLoadState: Equatable, Sendable {
+    case idle
+    case loading(String, Double?)
+    case ready
+    case cancelled
+    case failed(String)
+
+    var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
+
+    var canRetry: Bool {
+        switch self {
+        case .cancelled, .failed: return true
+        case .idle, .loading, .ready: return false
+        }
+    }
+
+    var progress: Double? {
+        if case .loading(_, let value) = self { return value }
+        return nil
+    }
+
+    var message: String {
+        switch self {
+        case .idle, .ready, .cancelled: return ""
+        case .loading(let text, _), .failed(let text): return text
+        }
+    }
+}
+
 struct VoiceSettings: Codable, Equatable, Sendable {
     var enabled = false
-    var agentName = "Цезарь"
+    var agentName = "Brute"
     var endPhrases = "приём, конец команды"
     var silenceSeconds: Double = 10
     var speakReplies = true

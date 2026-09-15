@@ -9,6 +9,7 @@ MainActor.assumeIsolated {
     }
 
     let app = NSApplication.shared
+    AppBootstrap.configureActivation(app)
     let delegate = AppDelegate()
     app.delegate = delegate
     app.run()

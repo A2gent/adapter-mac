@@ -14,26 +14,25 @@ actor VoiceWhisperDecoder {
     private var context: VoiceWhisperContext?
     private var vad: VadManager?
     private var vadState = VadStreamState.initial()
-    private var preparation: Task<Void, Error>?
+    private let preparation = VoiceModelPreparation()
 
-    func prepare() async throws {
-        if context != nil, vad != nil { return }
-        if let preparation { return try await preparation.value }
-        let task = Task { try await self.loadModels() }
-        preparation = task
-        defer { preparation = nil }
-        try await task.value
+    func prepare(onProgress: @escaping @Sendable (VoiceModelLoadState) -> Void = { _ in }) async throws {
+        try await preparation.prepare { try await self.loadModels(onProgress: onProgress) }
     }
 
-    private func loadModels() async throws {
+    private func loadModels(onProgress: @escaping @Sendable (VoiceModelLoadState) -> Void) async throws {
+        try Task.checkCancellation()
         let directory = LocalWhisperCPPModelManager.shared.modelsDirectory
         let url = directory.appendingPathComponent("ggml-small.bin")
         if !FileManager.default.fileExists(atPath: url.path) {
+            onProgress(.loading("Downloading multilingual Whisper model…", nil))
             var request = URLRequest(
                 url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin")!)
             request.timeoutInterval = 1800
-            let (temporary, response) = try await URLSession.shared.download(for: request)
+            let delegate = VoiceModelDownloadProgress(onProgress: onProgress)
+            let (temporary, response) = try await URLSession.shared.download(for: request, delegate: delegate)
             defer { try? FileManager.default.removeItem(at: temporary) }
+            try Task.checkCancellation()
             guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode),
                 (try FileManager.default.attributesOfItem(atPath: temporary.path)[.size] as? NSNumber)?.intValue ?? 0
                     > 1_000_000
@@ -44,6 +43,7 @@ actor VoiceWhisperDecoder {
         }
         try Task.checkCancellation()
         if context == nil {
+            onProgress(.loading("Loading cached Whisper model into memory…", nil))
             var params = whisper_context_default_params()
             params.use_gpu = true
             // Request GPU acceleration where supported; the pinned whisper.spm currently falls back to Accelerate.
@@ -53,7 +53,21 @@ actor VoiceWhisperDecoder {
                 throw SessionServiceError.message("Cannot load multilingual voice model at \(url.path).")
             }
         }
-        vad = try await VadManager()
+        try Task.checkCancellation()
+        if vad == nil {
+            onProgress(.loading("Preparing voice activity model…", nil))
+            vad = try await VadManager(progressHandler: { progress in
+                switch progress.phase {
+                case .downloading:
+                    onProgress(.loading("Downloading voice activity model…", progress.fractionCompleted))
+                case .compiling(let name):
+                    onProgress(.loading("Compiling voice activity model: \(name)…", nil))
+                default:
+                    onProgress(.loading("Preparing voice activity model…", nil))
+                }
+            })
+        }
+        try Task.checkCancellation()
     }
 
     func resetVAD() { vadState = .initial() }
@@ -110,4 +124,72 @@ struct VoiceSampleBuffer {
         }
         return (samples, overflowed)
     }
+}
+
+/// Shares preparation and retains ready models, but propagates cancellation to the actual download task.
+actor VoiceModelPreparation {
+    private var task: Task<Void, Error>?
+    private var generation = UUID()
+    private var ready = false
+
+    func prepare(_ load: @escaping @Sendable () async throws -> Void) async throws {
+        try Task.checkCancellation()
+        if ready { return }
+        if let previous = task, previous.isCancelled {
+            let previousID = generation
+            _ = try? await previous.value
+            if generation == previousID { task = nil }
+            return try await prepare(load)
+        }
+        if task == nil {
+            generation = UUID()
+            task = Task { try await load() }
+        }
+        let id = generation
+        let current = task!
+        do {
+            try await withTaskCancellationHandler {
+                try await current.value
+                try Task.checkCancellation()
+            } onCancel: {
+                current.cancel()
+            }
+            if generation == id {
+                ready = true
+                task = nil
+            }
+        } catch {
+            if generation == id { task = nil }
+            throw error
+        }
+    }
+}
+
+private final class VoiceModelDownloadProgress: NSObject, URLSessionDownloadDelegate {
+    let onProgress: @Sendable (VoiceModelLoadState) -> Void
+
+    init(onProgress: @escaping @Sendable (VoiceModelLoadState) -> Void) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession, downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        let received = ByteCountFormatter.string(fromByteCount: totalBytesWritten, countStyle: .file)
+        let fraction =
+            totalBytesExpectedToWrite > 0
+            ? min(1, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)) : nil
+        let total =
+            totalBytesExpectedToWrite > 0
+            ? " of " + ByteCountFormatter.string(fromByteCount: totalBytesExpectedToWrite, countStyle: .file) : ""
+        let percent = fraction.map { " (\(Int($0 * 100))%)" } ?? ""
+        onProgress(.loading("Downloading Whisper: \(received)\(total)\(percent)", fraction))
+    }
+
+    func urlSession(
+        _ session: URLSession, downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {}
 }

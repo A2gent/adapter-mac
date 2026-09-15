@@ -158,7 +158,11 @@ The user chose direct audio-to-session submission and automatic screen capture. 
 
 ## Local background voice conversations
 
-Open **Settings > Voice conversation**, enable **Listen while the app is running**, set the **Agent name / wake phrase**, and Save. Listening is opt-in; **Speak agent replies** is enabled by default and uses local macOS system voices independently of the F12 TTS engine.
+Open **Settings > Voice conversation**, enable **Listen while the app is running**, set the **Agent name / wake phrase**, and Save. The default name is **Brute**; previously saved names are preserved. Command and Reply settings have separate cards. Listening is opt-in; **Speak agent replies** is enabled by default and uses local macOS system voices independently of the F12 TTS engine.
+
+Model setup shows download bytes/percent when available and distinct cache-loading / VAD-compilation stages otherwise. **Cancel loading** stops setup; **Retry** explicitly retries after cancellation or failure. Cached models are reused. Saving unchanged voice settings does not restart listening or download models. Changing the microphone or voice settings reapplies listening configuration.
+
+The Russian examples below use a custom agent name of `Цезарь`; substitute your configured wake phrase.
 
 - Say the name before **every** command: `Цезарь, проверь тесты, приём`.
 - Activation shows the existing blue sphere and plays a short local Tink cue. A dot in the menu bar indicates the armed microphone; the tooltip and Settings show readiness/errors.

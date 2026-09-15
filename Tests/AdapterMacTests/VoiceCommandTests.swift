@@ -3,18 +3,24 @@ import XCTest
 @testable import adapter_mac
 
 final class VoiceCommandTests: XCTestCase {
+    private func russianWakeSettings() -> VoiceSettings {
+        var settings = VoiceSettings()
+        settings.agentName = "Цезарь"
+        return settings
+    }
+
     func testDefaultsAndValidation() {
         let settings = VoiceSettings()
         XCTAssertFalse(settings.enabled)
         XCTAssertTrue(settings.speakReplies)
-        XCTAssertEqual(settings.agentName, "Цезарь")
+        XCTAssertEqual(settings.agentName, "Brute")
         var invalid = settings
         invalid.agentName = " , "
         XCTAssertNotNil(invalid.validationMessage)
     }
 
     func testWakeWordBoundaryAndSameUtteranceCommand() {
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var machine = VoiceCommandState(settings: russianWakeSettings())
         XCTAssertEqual(machine.receive("цезарями", now: 0), [])
         XCTAssertEqual(machine.receive("Цезарь, проверь тесты", now: 1), [.activated])
         XCTAssertEqual(machine.text, "проверь тесты")
@@ -24,7 +30,7 @@ final class VoiceCommandTests: XCTestCase {
     }
 
     func testSilenceAndEmptyWake() {
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var machine = VoiceCommandState(settings: russianWakeSettings())
         _ = machine.receive("Цезарь", now: 0)
         XCTAssertEqual(machine.tick(now: 10), [.cancelled])
         _ = machine.receive("Цезарь проверь тесты", now: 20)
@@ -33,7 +39,7 @@ final class VoiceCommandTests: XCTestCase {
     }
 
     func testPartialRevisionsAndRecognitionRollover() {
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var machine = VoiceCommandState(settings: russianWakeSettings())
         _ = machine.receive("Цезарь проверь текст", now: 0)
         _ = machine.receive("Цезарь проверь тесты", now: 1)
         machine.finishSegment()
@@ -44,7 +50,7 @@ final class VoiceCommandTests: XCTestCase {
     }
 
     func testControlPhrasesAndSuffixOnly() {
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var machine = VoiceCommandState(settings: russianWakeSettings())
         XCTAssertEqual(
             machine.receive("Цезарь новая сессия проверь память приём", now: 0),
             [.activated, .submit("проверь память", newSession: true)])
@@ -55,7 +61,7 @@ final class VoiceCommandTests: XCTestCase {
     }
 
     func testLongCommandsAreNotSilentlySentAndTextIsBounded() {
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var machine = VoiceCommandState(settings: russianWakeSettings())
         _ = machine.receive("Цезарь начало", now: 0)
         _ = machine.receive("Цезарь продолжение", now: 119)
         XCTAssertEqual(machine.tick(now: 120), [.limitReached])
@@ -64,7 +70,7 @@ final class VoiceCommandTests: XCTestCase {
     }
 
     func testVADSpeechPostponesSilenceWithoutNewWords() {
-        var machine = VoiceCommandState(settings: VoiceSettings())
+        var machine = VoiceCommandState(settings: russianWakeSettings())
         _ = machine.receive("Цезарь подумай", now: 0)
         machine.speechDetected(now: 9)
         XCTAssertEqual(machine.tick(now: 10), [])
@@ -101,5 +107,43 @@ final class VoiceCommandTests: XCTestCase {
         settings.speakReplies = false
         settings.save(to: defaults)
         XCTAssertEqual(VoiceSettings.load(from: defaults), settings)
+    }
+
+    func testPersistedCustomAgentNameIsPreservedAcrossDefaultChange() {
+        let name = "voice-tests-\(UUID())"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        var settings = VoiceSettings()
+        settings.agentName = "Цезарь"
+        settings.save(to: defaults)
+        XCTAssertEqual(VoiceSettings.load(from: defaults).agentName, "Цезарь")
+    }
+
+    func testVoiceModelLoadStateContract() {
+        XCTAssertFalse(VoiceModelLoadState.idle.isLoading)
+        XCTAssertFalse(VoiceModelLoadState.idle.canRetry)
+        XCTAssertNil(VoiceModelLoadState.idle.progress)
+        XCTAssertEqual(VoiceModelLoadState.idle.message, "")
+
+        let loading = VoiceModelLoadState.loading("Downloading whisper model…", 0.42)
+        XCTAssertTrue(loading.isLoading)
+        XCTAssertFalse(loading.canRetry)
+        XCTAssertEqual(loading.progress, 0.42)
+        XCTAssertEqual(loading.message, "Downloading whisper model…")
+
+        let indeterminate = VoiceModelLoadState.loading("Preparing…", nil)
+        XCTAssertTrue(indeterminate.isLoading)
+        XCTAssertNil(indeterminate.progress)
+
+        XCTAssertFalse(VoiceModelLoadState.ready.isLoading)
+        XCTAssertFalse(VoiceModelLoadState.ready.canRetry)
+
+        XCTAssertFalse(VoiceModelLoadState.cancelled.isLoading)
+        XCTAssertTrue(VoiceModelLoadState.cancelled.canRetry)
+
+        let failed = VoiceModelLoadState.failed("Network error")
+        XCTAssertFalse(failed.isLoading)
+        XCTAssertTrue(failed.canRetry)
+        XCTAssertEqual(failed.message, "Network error")
     }
 }
