@@ -1,11 +1,11 @@
-# adapter-mac - Speech To Text & Text To Speech
-
-<p align="center">
-  <img src="./stts/Resources/Brand/a2gent.jpg" alt="adapter-mac logo" width="180" />
-</p>
+# Agent ² adapter for Mac OSX
 
 Native macOS application for system-wide speech-to-text and text-to-speech conversion.
-Must have [brute agent](https://github.com/A2gent/brute) running locally.
+Has always-on mode, similar to "Hey Google", "Hey Siri", "Эй Алиса" and other suspicious software tools.
+Acts as a client for [brute agent](https://github.com/A2gent/brute) that must run locally which acts as source of data and API for audio conversions.
+ 
+<img width="1488" height="1062" alt="Screenshot 2026-09-16 at 00 16 06" src="https://github.com/user-attachments/assets/ff626452-e000-43ba-8c8d-a3ecd3f7836d" />
+
 
 ## Features
 - Automatic speech-to-text capture and automatic paste into any focused input with keyboard press (F12)
