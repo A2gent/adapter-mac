@@ -35,6 +35,10 @@
 		1A0000010000000000000030 /* BrandResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000030; };
 		1A0000010000000000000031 /* CaesarSphereView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000031; };
 		1A0000010000000000000032 /* Brand in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000032; };
+		1A0000010000000000000033 /* BruteSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000033; };
+		1A0000010000000000000034 /* DisplayCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000034; };
+		1A0000010000000000000035 /* SessionComposerWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000035; };
+		1A0000010000000000000036 /* ScreenshotAnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000036; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +72,10 @@
 		1A0000020000000000000030 /* BrandResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandResources.swift; sourceTree = "<group>"; };
 		1A0000020000000000000031 /* CaesarSphereView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaesarSphereView.swift; sourceTree = "<group>"; };
 		1A0000020000000000000032 /* Brand */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Brand; sourceTree = "<group>"; };
+		1A0000020000000000000033 /* BruteSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BruteSessionService.swift; sourceTree = "<group>"; };
+		1A0000020000000000000034 /* DisplayCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCaptureService.swift; sourceTree = "<group>"; };
+		1A0000020000000000000035 /* SessionComposerWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionComposerWindow.swift; sourceTree = "<group>"; };
+		1A0000020000000000000036 /* ScreenshotAnnotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotAnnotationView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +121,8 @@
 		1A0000040000000000000002 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				1A0000020000000000000034 /* DisplayCaptureService.swift */,
+				1A0000020000000000000033 /* BruteSessionService.swift */,
 				1A0000020000000000000028 /* SettingsDraft.swift */,
 				1A0000020000000000000003 /* GlobalShortcutMonitor.swift */,
 				1A0000020000000000000004 /* AccessibilityService.swift */,
@@ -137,6 +147,8 @@
 		1A0000040000000000000003 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1A0000020000000000000036 /* ScreenshotAnnotationView.swift */,
+				1A0000020000000000000035 /* SessionComposerWindow.swift */,
 				1A0000020000000000000031 /* CaesarSphereView.swift */,
 				1A0000020000000000000030 /* BrandResources.swift */,
 				1A0000020000000000000029 /* SettingsWindow.swift */,
@@ -215,6 +227,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A0000010000000000000036 /* ScreenshotAnnotationView.swift in Sources */,
+				1A0000010000000000000035 /* SessionComposerWindow.swift in Sources */,
+				1A0000010000000000000034 /* DisplayCaptureService.swift in Sources */,
+				1A0000010000000000000033 /* BruteSessionService.swift in Sources */,
 				1A0000010000000000000031 /* CaesarSphereView.swift in Sources */,
 				1A0000010000000000000030 /* BrandResources.swift in Sources */,
 				1A0000010000000000000029 /* SettingsWindow.swift in Sources */,

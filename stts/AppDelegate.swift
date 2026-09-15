@@ -18,6 +18,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var settingsController: SettingsWindowController?
     private var previousApplication: NSRunningApplication?
+    private var sessionComposer: SessionComposerWindow?
+    private var audioRecoveryComposer: SessionComposerWindow?
+    private var audioSnapshotTask: Task<DisplaySnapshot, Error>?
+    private var isSessionProcessing = false
+    private let sessionService = BruteSessionService()
     var shortcutMonitor: GlobalShortcutMonitor?
     var audioService: AudioService?
     var recordingWindow: RecordingWindow?
@@ -74,6 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         for item in [
+            NSMenuItem(title: "New session…", action: #selector(openSessionComposer), keyEquivalent: "n"),
             NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","),
             NSMenuItem(title: "Quit A²gent", action: #selector(quit), keyEquivalent: "q")
         ] {
@@ -172,6 +178,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             else { self.startRecording(mode: .pasteTranscription) }
         }
         model.onStopPlayback = { [weak self] in self?.stopPlayback() }
+        model.onNewSession = { [weak self] in self?.openSessionComposer() }
         model.onCancel = { [weak self] in self?.settingsController?.close() }
         model.isRecording = isRecording
         model.isPlaying = isPlayingTextToSpeech
@@ -191,6 +198,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Shortcut Handler
     
     private func handleAdapterMacShortcutPressed() {
+        guard !isSessionProcessing else { return }
         adapterMacShortcutPressStartedAt = Date()
 
         if RecordingShortcutSettings.holdToRecordEnabled {
@@ -248,8 +256,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleBruteSessionShortcutPressed() {
+        guard !isSessionProcessing else { return }
         if isRecording {
             stopRecording()
+            return
+        }
+        if let recovery = audioRecoveryComposer, recovery.model.created == nil {
+            recovery.present()
             return
         }
         if isPlayingTextToSpeech {
@@ -272,8 +285,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func startRecording(mode: RecordingMode) {
-        guard !isRecording else { return }
+        guard !isRecording, !isSessionProcessing else { return }
         recordingMode = mode
+        if mode == .bruteSession {
+            let displayID = DisplayCaptureService.currentDisplayID()
+            let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Current display"
+            audioSnapshotTask = Task { try await DisplayCaptureService().capture(displayID: displayID, applicationName: appName) }
+        }
         
         isRecording = true
         updateMenuState()
@@ -281,7 +299,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let window = RecordingWindow(
             deviceName: audioService?.activeInputDeviceName() ?? "No microphone",
             titleText: mode == .bruteSession ? "BRUTE" : "REC",
-            hintText: mode == .bruteSession ? "Esc cancel, shortcut send to brute" : "Esc cancel, shortcut paste text"
+            hintText: mode == .bruteSession ? "Knowledge Base + screen · Esc cancel" : "Esc cancel, shortcut paste text"
         )
         self.recordingWindow = window
         window.show()
@@ -291,6 +309,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if case .failure(let issue) = result {
                 self.isRecording = false
                 self.recordingMode = nil
+                self.audioSnapshotTask?.cancel()
+                self.audioSnapshotTask = nil
                 self.adapterMacShortcutPressStartedAt = nil
                 self.closeRecordingWindow()
                 self.updateMenuState()
@@ -303,8 +323,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard isRecording else { return }
         
         isRecording = false
-        updateMenuState()
         let completedMode = recordingMode
+        if completedMode == .bruteSession { isSessionProcessing = true }
+        updateMenuState()
         recordingMode = nil
         adapterMacShortcutPressStartedAt = nil
         
@@ -327,6 +348,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.performSpeechToText(audioURL: outcome.fileURL)
                 }
             case .failure(let issue):
+                self.isSessionProcessing = false
+                self.audioSnapshotTask?.cancel()
+                self.audioSnapshotTask = nil
+                self.updateMenuState()
                 self.closeRecordingWindow()
                 self.showError(issue.userMessage)
             }
@@ -342,6 +367,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard isRecording else { return }
 
         isRecording = false
+        audioSnapshotTask?.cancel()
+        audioSnapshotTask = nil
         recordingMode = nil
         adapterMacShortcutPressStartedAt = nil
         updateMenuState()
@@ -412,38 +439,119 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func performSpeechToBruteSession(audioURL: URL) {
         statusItem?.button?.image = menuBarImage(for: .active)
-
+        let capture = audioSnapshotTask
+        audioSnapshotTask = nil
         requestTranscription(for: audioURL) { [weak self] result in
-            switch result {
-            case .success(let text):
-                let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !prompt.isEmpty else {
-                    DispatchQueue.main.async {
-                        self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
-                        self?.closeRecordingWindow()
-                    }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer {
+                    self.isSessionProcessing = false
+                    self.closeRecordingWindow()
+                    self.updateMenuState()
+                }
+                let prompt: String
+                switch result {
+                case .success(let text): prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                case .failure(let error):
+                    capture?.cancel()
+                    self.showError("Transcription failed: \(error.localizedDescription). Audio remains at \(audioURL.path).")
                     return
                 }
-
-                BruteSessionService.shared.startSession(with: prompt) { launchResult in
-                    DispatchQueue.main.async {
-                        self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
-                        self?.closeRecordingWindow()
-                        if case .failure(let error) = launchResult {
-                            self?.showError("Failed to start brute session: \(error.localizedDescription)")
-                        }
-                    }
+                guard !prompt.isEmpty else {
+                    capture?.cancel()
+                    self.showError("No speech was transcribed. No session was created.")
+                    return
                 }
-            case .failure(let error):
-                DispatchQueue.main.async {
-                    self?.statusItem?.button?.image = self?.menuBarImage(for: .idle)
-                    self?.closeRecordingWindow()
-                    self?.showError("Transcription failed: \(error.localizedDescription)")
+                var snapshot: DisplaySnapshot?
+                var captureError: String?
+                do { snapshot = try await capture?.value }
+                catch { captureError = error.localizedDescription }
+                guard let baseURL = WhisperService.shared.apiBaseURL() else {
+                    self.showError("Invalid Brute URL. Transcript: \(prompt)")
+                    return
+                }
+                do {
+                    let project = try await self.sessionService.knowledgeBaseProject(baseURL: baseURL)
+                    let images = try snapshot.map { [SessionImage(pngData: try ScreenshotRenderer.png(image: $0.image, marks: []))] } ?? []
+                    let request = try SessionCreationRequest(task: prompt, projectID: project.id, images: images)
+                    let session = try await self.sessionService.create(baseURL: baseURL, request: request)
+                    if let url = BruteSessionService.caesarURL(sessionID: session.id) { NSWorkspace.shared.open(url) }
+                    if let captureError { self.showError("Session created with your transcript, but without a screenshot. \(captureError)") }
+                } catch {
+                    // Failed audio submissions become editable drafts instead of discarding speech.
+                    let model = SessionComposerModel(baseURL: baseURL)
+                    model.text = prompt
+                    model.snapshot = snapshot
+                    model.captureError = captureError
+                    await model.loadProjects(preferKnowledgeBase: true)
+                    model.error = "\(error.localizedDescription) Transcript retained. Check Caesar before retrying after a connection failure."
+                    self.showComposer(model, audioRecovery: true)
                 }
             }
         }
     }
-    
+
+    @objc func openSessionComposer() {
+        if let controller = sessionComposer, controller.model.created == nil {
+            controller.present()
+            return
+        }
+        if let frontmost = NSWorkspace.shared.frontmostApplication, frontmost.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            previousApplication = frontmost
+        }
+        guard let baseURL = WhisperService.shared.apiBaseURL() else {
+            showError("Configure a valid Brute URL in Audio & speech settings.")
+            return
+        }
+        let model = SessionComposerModel(baseURL: baseURL)
+        showComposer(model, captureOnOpen: true)
+        Task { await model.loadProjects() }
+    }
+
+    private func showComposer(_ model: SessionComposerModel, captureOnOpen: Bool = false, audioRecovery: Bool = false) {
+        let controller = SessionComposerWindow(model: model)
+        // A failed voice submission must not overwrite a separate manual draft.
+        if audioRecovery { audioRecoveryComposer = controller }
+        else { sessionComposer = controller }
+        model.onDiscard = { [weak self, weak controller] in
+            controller?.close()
+            if audioRecovery { self?.audioRecoveryComposer = nil }
+            else { self?.sessionComposer = nil }
+        }
+        model.onRecapture = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.captureForComposer(controller)
+        }
+        if captureOnOpen { captureForComposer(controller) }
+        else { controller.present() }
+    }
+
+    private func captureForComposer(_ controller: SessionComposerWindow) {
+        let model = controller.model
+        guard !model.capturing else { return }
+        let displayID = DisplayCaptureService.currentDisplayID()
+        let appName = previousApplication?.localizedName ?? NSWorkspace.shared.frontmostApplication?.localizedName ?? "Current display"
+        model.capturing = true
+        model.captureError = nil
+        // Hide adapter windows before capture, then restore the composer. ScreenCaptureKit
+        // also excludes this process so HUDs never leak into the captured context.
+        settingsController?.window?.orderOut(nil)
+        controller.window?.orderOut(nil)
+        previousApplication?.activate()
+        Task {
+            do {
+                model.snapshot = try await DisplayCaptureService().capture(displayID: displayID, applicationName: appName)
+                model.marks = []
+            } catch {
+                model.snapshot = nil
+                model.marks = []
+                model.captureError = error.localizedDescription
+            }
+            model.capturing = false
+            controller.present()
+        }
+    }
+
     private func showError(_ message: String) {
         let alert = NSAlert()
         alert.messageText = "Error"
@@ -457,7 +565,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !isRecording { settingsController?.model.audioLevel = 0 }
         settingsController?.model.isRecording = isRecording
         settingsController?.model.isPlaying = isPlayingTextToSpeech
-        statusItem?.button?.image = menuBarImage(for: (isRecording || isPlayingTextToSpeech) ? .active : .idle)
+        statusItem?.button?.image = menuBarImage(for: (isRecording || isPlayingTextToSpeech || isSessionProcessing) ? .active : .idle)
     }
 
     private func menuBarImage(for state: MenuBarVisualState) -> NSImage? {

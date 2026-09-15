@@ -13,7 +13,13 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
   - **Recording reliability safeguards** for Bluetooth and Continuity microphones, plus short or empty capture detection before transcription
 - Automatic text-to-speech generation of currently selectect text with a keyboard press (also F12)
   - **Floating playback window** for text-to-speech with stop, pause, and seek controls
-- Brute AI agent session creation from speech with a keyboard press(F11)
+- Brute AI agent session creation from speech with a keyboard press (F11)
+  - Sends the transcript immediately to **Knowledge Base**, with an automatic screenshot of the display under the pointer
+  - Opens the created session in Caesar; errors preserve the transcript as a recoverable draft
+- **New session with screen context** in Settings (or Cmd+N while the app is active)
+  - Explicit project selection, editable message, automatic screenshot preview
+  - Pen, arrow and rectangle annotations, Undo/Clear, recapture and attachment removal
+  - Works with desktop apps and games, not only browser pages
 - **Smart context detection:**
   - Text selected -> Text-to-Speech (plays audio)
   - No selection -> Speech-to-Text (records audio, transcribes, pastes result)
@@ -27,6 +33,7 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
 - Xcode 14.0+
 - Microphone permissions
 - Accessibility permissions (for global shortcuts and text insertion)
+- Screen Recording permission for optional display context
 - Optional: `edge-tts` in `PATH` or a common local install location for higher-quality online TTS
 ## Quick Start
 
@@ -133,3 +140,18 @@ flowchart TD
 ## License
 
 Private project
+
+## Session creation and screen privacy
+
+- **Voice (F11):** recording starts an automatic single-frame capture of the display under the pointer. Stopping sends the nonempty transcript as `task`, explicitly binds `project_id` to Knowledge Base, and includes the screenshot. There is no confirmation step. Ordinary F12 dictation/read-aloud does **not** capture the screen.
+- **Manual:** open Settings → **New session with screen context**. The adapter hides itself, captures the current display, then shows a composer. Select a project, enter the task, and optionally draw on or remove the screenshot before creating the session (Cmd+Return).
+- ScreenCaptureKit excludes the adapter's own windows. Other visible windows on the selected display are included: avoid showing secrets when starting a voice session. No continuous screen recording, system-audio capture, or remote window control is enabled by this feature.
+- Screen Recording permission is requested on first capture. If declined, voice still sends the transcript and reports the missing screenshot; manual sessions can be sent without an attachment. Enable permission in macOS Privacy & Security to retry (macOS may require restarting the app).
+- A screenshot is kept in memory, downscaled to a maximum edge of 2560 pixels, and sent as PNG using the same `images` payload as adapter-chrome. Drawings are burned into the image. Images over the backend's 8 MiB limit are rejected before submission.
+- Both flows use Brute's serial queue, so the first message and images are persisted and the session is scheduled to run. A missing Knowledge Base, invalid/empty task, invalid project, or HTTP error is not reported as success.
+- Failed POSTs are not retried automatically: check Caesar before retrying after a connection interruption to avoid duplicates. Closing the composer retains its draft in memory; use **Discard** to clear it. Failed voice drafts are kept separately from manual drafts. Drafts do not survive quitting the app.
+- The session API base URL is derived from the saved transcription endpoint, including when using local transcription. Results open at `https://my.a2gent.net/#/chat/<id>`.
+
+### Decisions for this change
+
+The user chose direct audio-to-session submission and automatic screen capture. Voice defaults to Knowledge Base; manual sessions require explicit project selection. The previously created empty session is left unchanged: the old client omitted `project_id` and sent an unsupported `prompt` field, so the backend stored no initial message to recover.

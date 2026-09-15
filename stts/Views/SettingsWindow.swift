@@ -22,6 +22,7 @@ final class SettingsModel: ObservableObject {
     var onToggleRecording: (() -> Void)?
     var onStopPlayback: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onNewSession: (() -> Void)?
 
     init(draft: SettingsDraft, devices: [AudioInputDevice], defaultDeviceName: String, ttsAvailability: String) {
         self.draft = draft
@@ -177,6 +178,13 @@ private struct SettingsView: View {
                 Text("Dictate anywhere. Listen to selected text. Start an agent session.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }.frame(maxWidth: .infinity).padding(.bottom, 8)
+            Button {
+                model.onNewSession?()
+            } label: {
+                Label("New session with screen context", systemImage: "plus.bubble")
+            }.buttonStyle(.borderedProminent)
+            Text("Voice sessions go straight to Knowledge Base. Both modes automatically capture the current display.")
+                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             HStack(spacing: 14) {
                 summary("Dictation & read aloud", value: model.draft.adapterShortcut.title, symbol: "mic")
                 summary("New Brute session", value: model.draft.bruteShortcut.title, symbol: "sparkles")

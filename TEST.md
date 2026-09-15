@@ -136,3 +136,25 @@ xcrun swift-format lint --strict stts/Views/{SettingsWindow,BrandResources,Caesa
 ```
 
 Settings tests cover draft validation, save/cancel semantics, window reuse and bundled WebKit sphere loading without network access.
+
+## Session composer and voice regression checklist
+
+Automated: `swift test` covers the API contract (`task`, `project_id`, `images`, serial queue), Knowledge Base lookup, missing projects, HTTP errors, incomplete responses, retained drafts, duplicate-submit prevention, annotation scaling/clamping and PNG export orientation.
+
+Manual checks (require microphone/Screen Recording permissions and a running Brute):
+
+- [ ] F11 from another app: speak, stop, and verify Caesar opens a session in Knowledge Base with the actual transcript and a screenshot captured at recording start.
+- [ ] Empty/failed transcription creates no session. A failed session POST opens a draft containing the transcript and screenshot; an existing manual draft remains intact.
+- [ ] No screen permission: transcript still sends, with a visible screenshot warning. F12 never captures a display.
+- [ ] Settings → New session: select project, edit task, draw pen/arrow/rectangle, Undo/Clear, submit. Check the project's first user message contains the flattened image with correctly placed marks.
+- [ ] Remove attachment and submit: the backend receives no images. Recapture failure clears the stale attachment.
+- [ ] Multiple displays: capture uses the display under the pointer, not always the primary display. Verify with Retina scaling and a fullscreen game. Own settings/composer/HUD must be excluded.
+- [ ] Permission-denied, disconnected display, offline backend and missing Knowledge Base show actionable errors without creating an unbound session or discarding drafts.
+- [ ] Double-click Create does not duplicate requests. Close/reopen retains a draft; Discard clears it. A failed audio draft is offered again on F11 until submitted or discarded.
+- [ ] Resize composer to minimum size, test light/dark appearance and keyboard project/message editing.
+
+Lint the new session files:
+
+```sh
+xcrun swift-format lint --strict stts/Services/{BruteSessionService,DisplayCaptureService}.swift stts/Views/{SessionComposerWindow,ScreenshotAnnotationView,SettingsWindow}.swift Tests/AdapterMacTests/{SessionRequest,SessionComposer,BruteSessionService}Tests.swift
+```
