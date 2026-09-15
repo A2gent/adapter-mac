@@ -39,13 +39,102 @@ final class VoiceStreamingTests: XCTestCase {
         XCTAssertNil(queue.popFirst())
     }
 
-    func testDecoderBacklogFailsExplicitlyInsteadOfDroppingCommands() throws {
+    func testShortPausesDoNotExhaustQueueSlots() throws {
         var queue = VoiceDecodeQueue()
-        for _ in 0..<4 {
-            try queue.enqueue(.init(id: UUID(), samples: [1], isFinal: true, speechTime: 0))
+        let ids = (0..<12).map { _ in UUID() }
+        for (index, id) in ids.enumerated() {
+            try queue.enqueue(.init(id: id, samples: chunk, isFinal: true, speechTime: Double(index)))
         }
-        XCTAssertThrowsError(try queue.enqueue(.init(id: UUID(), samples: [2], isFinal: true, speechTime: 1)))
-        XCTAssertEqual(queue.count, 4)
+        XCTAssertEqual(queue.count, ids.count)
+        for id in ids { XCTAssertEqual(queue.popFirst()?.id, id) }
+        XCTAssertTrue(queue.isEmpty)
+    }
+
+    func testBusyDecoderSkipsPreviewsButRetainsEveryFinalSample() throws {
+        var stream = VoiceUtteranceStream()
+        let speech = [Float](repeating: 0.2, count: 4096)
+        let silence = [Float](repeating: 0, count: 4096)
+        for i in 0..<8 {
+            XCTAssertNil(stream.append(speech, speech: true, speechTime: Double(i), allowPartial: false))
+        }
+        for i in 0..<2 {
+            XCTAssertNil(stream.append(silence, speech: false, speechTime: Double(i + 8), allowPartial: false))
+        }
+        let final = try XCTUnwrap(stream.append(silence, speech: false, speechTime: 10, allowPartial: false))
+        XCTAssertTrue(final.isFinal)
+        XCTAssertEqual(
+            final.samples,
+            Array(repeating: speech, count: 8).flatMap { $0 } + Array(repeating: silence, count: 3).flatMap { $0 })
+        XCTAssertFalse(stream.hasUtterance)
+    }
+
+    func testSlowDecoderAcrossSixPausedSegmentsRetainsOrderedFinals() throws {
+        var stream = VoiceUtteranceStream()
+        var queue = VoiceDecodeQueue()
+        let silence = [Float](repeating: 0, count: 4096)
+        var inFlight: VoiceDecodeRequest?
+        var expectedFinals: [[Float]] = []
+        for segment in 0..<6 {
+            let speech = [Float](repeating: Float(segment + 1), count: 4096)
+            for chunkIndex in 0..<6 {
+                let isSpeech = chunkIndex < 3
+                let chunk = isSpeech ? speech : silence
+                if let request = stream.append(
+                    chunk, speech: isSpeech, speechTime: Double(segment * 6 + chunkIndex) * 0.256,
+                    allowPartial: inFlight == nil && queue.isEmpty)
+                {
+                    try queue.enqueue(request)
+                    if inFlight == nil { inFlight = queue.popFirst() }
+                }
+            }
+            expectedFinals.append(
+                Array(repeating: speech, count: 3).flatMap { $0 } + Array(repeating: silence, count: 3).flatMap { $0 })
+        }
+        XCTAssertEqual(inFlight?.isFinal, false)
+        XCTAssertEqual(queue.count, 6)
+        XCTAssertFalse(stream.hasUtterance)
+        var previousID: UUID?
+        for expected in expectedFinals {
+            let final = try XCTUnwrap(queue.popFirst())
+            XCTAssertTrue(final.isFinal)
+            XCTAssertEqual(final.samples, expected)
+            XCTAssertNotEqual(final.id, previousID)
+            previousID = final.id
+        }
+        XCTAssertEqual(queue.queuedSampleCount, 0)
+    }
+
+    func testPreviewsResumeImmediatelyAfterBackpressureClears() {
+        var stream = VoiceUtteranceStream()
+        for i in 0..<6 {
+            XCTAssertNil(stream.append(chunk, speech: true, speechTime: Double(i), allowPartial: false))
+        }
+        let preview = stream.append(chunk, speech: true, speechTime: 6, allowPartial: true)
+        XCTAssertEqual(preview?.samples.count, 7 * chunk.count)
+        XCTAssertEqual(preview?.isFinal, false)
+    }
+
+    func testQueueBoundsAudioNotSegmentCountAndRecoversCapacityOnPop() throws {
+        var queue = VoiceDecodeQueue(maxSamples: 10)
+        let first = UUID()
+        try queue.enqueue(.init(id: first, samples: [1, 2], isFinal: false, speechTime: 1))
+        try queue.enqueue(.init(id: first, samples: [1, 2, 3, 4], isFinal: true, speechTime: 2))
+        try queue.enqueue(.init(id: UUID(), samples: [5, 6, 7, 8, 9, 10], isFinal: true, speechTime: 3))
+        XCTAssertEqual(queue.queuedSampleCount, 10)
+        XCTAssertThrowsError(try queue.enqueue(.init(id: UUID(), samples: [11], isFinal: true, speechTime: 4)))
+        XCTAssertEqual(queue.count, 2)
+        XCTAssertEqual(queue.popFirst()?.samples, [1, 2, 3, 4])
+        XCTAssertEqual(queue.queuedSampleCount, 6)
+        try queue.enqueue(.init(id: UUID(), samples: [11], isFinal: true, speechTime: 4))
+    }
+
+    func testOversizedReplacementLeavesEarlierAudioIntact() throws {
+        var queue = VoiceDecodeQueue(maxSamples: 4)
+        let id = UUID()
+        try queue.enqueue(.init(id: id, samples: [1, 2], isFinal: false, speechTime: 0))
+        XCTAssertThrowsError(try queue.enqueue(.init(id: id, samples: [1, 2, 3, 4, 5], isFinal: true, speechTime: 1)))
+        XCTAssertEqual(queue.queuedSampleCount, 2)
+        XCTAssertEqual(queue.popFirst()?.samples, [1, 2])
     }
 
     func testLongUtterancesAreBoundedAndSilenceDoesNotDecode() {

@@ -213,3 +213,10 @@ Manual acceptance still required with the actual microphone and a running Brute:
 5. Cancel during a pending reply: the backend session still exists but must not speak on completion. Check noise, Bluetooth input, disconnects, and recovery.
 
 No live-microphone, live-backend, or native screenshot acceptance is claimed by the fixture/unit tests. The already running Xcode app was not restarted automatically.
+
+## Slow-decoder backpressure regression (2026-09-16)
+
+- Reproduced performance mismatch on the same 2.816s Russian fixture: Debug decode 7.73s, Release decode 1.10s. The running user process was in Xcode's Debug products directory.
+- New deterministic tests stall the decoder across six paused segments, preserve every final PCM sample and segment order, suppress previews while busy, resume previews when idle, accept more than four short finals, and check sample-budget exhaustion/replacement/pop accounting.
+- The shared scheme's normal Run is Release; Debug remains available for diagnosis. `xcodebuild -project adapter-mac.xcodeproj -scheme adapter-mac -showBuildSettings` must report `CONFIGURATION = Release` without an override.
+- Manual acceptance: stop the old Debug instance; run the shared Release scheme; Retry voice setup if needed. Speak several short clauses separated by pauses, then a longer command. Verify no four-fragment error, ordered text without duplicate words, and final audio included before send. Real microphone/backend acceptance is still required (A-40).

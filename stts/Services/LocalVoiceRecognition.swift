@@ -183,7 +183,12 @@ final class LocalVoiceRecognition {
                         latestSpeechTime = speechTime
                         onSpeech?(speechTime)
                     }
-                    if let request = stream.append(chunk, speech: speech, speechTime: speechTime) {
+                    // A preview re-decodes the entire segment. While Whisper is busy, retain
+                    // audio in the stream instead; finals always enter the ordered queue.
+                    if let request = stream.append(
+                        chunk, speech: speech, speechTime: speechTime,
+                        allowPartial: decodeTask == nil && decodeQueue.isEmpty)
+                    {
                         try decodeQueue.enqueue(request)
                         startDecoding(generation: generation, language: language, vocabulary: vocabulary)
                     }
