@@ -1,7 +1,7 @@
 # adapter-mac - Speech To Text & Text To Speech
 
 <p align="center">
-  <img src="./logo-settings.png" alt="adapter-mac logo" width="180" />
+  <img src="./stts/Resources/Brand/a2gent.jpg" alt="adapter-mac logo" width="180" />
 </p>
 
 Native macOS application for system-wide speech-to-text and text-to-speech conversion.
@@ -17,20 +17,13 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
 - **Smart context detection:**
   - Text selected -> Text-to-Speech (plays audio)
   - No selection -> Speech-to-Text (records audio, transcribes, pastes result)
-- **Menu bar presence** with settings window
+- **Menu bar presence** with a dedicated, resizable settings window (no dropdown)
   - **Selectable microphones** with clearer labels for built-in, external, Bluetooth, and iPhone Continuity inputs
   - **Selectable TTS engines** in Settings: automatic, native macOS speech, and `edge-tts`
 
-<img width="258" height="114" alt="Screenshot 2026-04-11 at 23 53 53" src="https://github.com/user-attachments/assets/296884fc-498c-4937-8adc-0beaade82f66" />
-<img width="358" height="144" alt="Screenshot 2026-04-11 at 23 55 06" src="https://github.com/user-attachments/assets/94c2fc07-a5f6-478d-a968-017d11beec55" />
-<img width="596" height="618" alt="Screenshot 2026-04-11 at 23 56 17" src="https://github.com/user-attachments/assets/e1f6d592-2cb1-47ec-8f83-9d1fe1402605" />
-
-
-
-
 ## Requirements
 
-- macOS 13.0+
+- macOS 14.0+
 - Xcode 14.0+
 - Microphone permissions
 - Accessibility permissions (for global shortcuts and text insertion)
@@ -53,7 +46,7 @@ Must have [brute agent](https://github.com/A2gent/brute) running locally.
    - Microphone access
    - Accessibility access
 
-5. **Open Settings** and confirm the backend URL if needed.
+5. **Click the A²gent menu bar icon** to open Settings. Choose **Audio & speech** to configure your microphone, transcription provider, backend URL, and TTS engine.
 
 6. **Test it**:
    - Select any text → Press F12 → Listen to speech
@@ -97,7 +90,8 @@ When `edge-tts` is selected or used by the automatic engine, the selected text i
 
 ## Architecture
 
-- **Swift + AppKit** for native macOS experience
+- **Swift + AppKit + SwiftUI** for a native, nonmodal settings window
+- **Local WebKit/Three.js** for the same blue faceted sphere used in Caesar (no network requests)
 - **AVFoundation** for audio recording and playback
 - **Carbon** for global keyboard shortcuts
 - **Accessibility API** for text selection detection and insertion
@@ -120,7 +114,7 @@ flowchart TD
 
 ## Usage
 
-1. Click menu bar icon to configure settings
+1. Click the A²gent menu bar icon to open Settings directly. Overview contains recording/playback controls and Quit; Audio & speech and Shortcuts contain configuration. Save changes applies the draft; Cancel or closing the window discards unsaved changes. Repeated clicks focus the existing window.
 2. Press configured shortcut:
    - **With text selected:** Converts text to speech and plays audio
    - **Without selection:** Opens recording window

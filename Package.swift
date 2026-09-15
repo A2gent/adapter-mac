@@ -27,8 +27,9 @@ let package = Package(
             exclude: [
                 "Info.plist",
                 "Assets.xcassets",
-                "Resources"
-            ]
+                "Resources/TTS"
+            ],
+            resources: [.copy("Resources/Brand")]
         ),
         .testTarget(
             name: "AdapterMacTests",

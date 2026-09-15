@@ -16,7 +16,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let holdToRecordGesture = HoldToRecordGesture(threshold: 0.3)
 
     var statusItem: NSStatusItem?
-    var menu: NSMenu?
+    var settingsController: SettingsWindowController?
+    private var previousApplication: NSRunningApplication?
     var shortcutMonitor: GlobalShortcutMonitor?
     var audioService: AudioService?
     var recordingWindow: RecordingWindow?
@@ -54,26 +55,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Setup
     
-    private func setupMenuBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    func setupMenuBar() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
             button.imageScaling = .scaleProportionallyDown
             button.image = menuBarImage(for: .idle)
         }
         
-        menu = NSMenu()
-        menu?.addItem(NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ","))
-        menu?.addItem(NSMenuItem.separator())
-        menu?.addItem(NSMenuItem(title: "Start Recording", action: #selector(startRecordingFromMenu), keyEquivalent: "r"))
-        menu?.addItem(NSMenuItem(title: "Stop Recording", action: #selector(stopRecordingFromMenu), keyEquivalent: "s"))
-        menu?.addItem(NSMenuItem.separator())
-        menu?.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
-
-        menu?.autoenablesItems = false
-        updateMenuState()
-        
-        statusItem?.menu = menu
+        if let button = statusItem?.button {
+            button.target = self
+            button.action = #selector(openSettings)
+            button.toolTip = "A²gent · Open settings"
+            button.setAccessibilityLabel("A²gent settings")
+        }
+        // Keep standard keyboard commands available without a status-item dropdown.
+        let mainMenu = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        for item in [
+            NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","),
+            NSMenuItem(title: "Quit A²gent", action: #selector(quit), keyEquivalent: "q")
+        ] {
+            item.target = self
+            appMenu.addItem(item)
+        }
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: "Edit")
+        for (title, action, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+            editMenu.addItem(NSMenuItem(title: title, action: Selector(action), keyEquivalent: key))
+        }
+        editItem.submenu = editMenu
+        mainMenu.addItem(editItem)
+        let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        windowItem.submenu = windowMenu
+        mainMenu.addItem(windowItem)
+        NSApp.mainMenu = mainMenu
     }
     
     private func setupServices() {
@@ -110,203 +131,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Actions
     
-    @objc private func openSettings() {
-        guard let audioService, let shortcutMonitor else {
-            showError("Settings are unavailable")
+    @objc func openSettings() {
+        guard let audioService, let shortcutMonitor else { return }
+        if let frontmost = NSWorkspace.shared.frontmostApplication, frontmost.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            previousApplication = frontmost
+        }
+        // Reuse the live window, preserving unsaved edits on repeated menu-bar clicks.
+        if let controller = settingsController, controller.window?.isVisible == true || controller.window?.isMiniaturized == true {
+            controller.present()
             return
         }
-
-        let devices = audioService.availableInputDevices()
-        let shortcutKeys = GlobalShortcutMonitor.availableShortcutKeys()
-        let currentAdapterMacShortcut = shortcutMonitor.currentShortcut(for: .adapterMac)
-        let currentBruteShortcut = shortcutMonitor.currentShortcut(for: .bruteSession)
-
-        let alert = NSAlert()
-        alert.messageText = "Settings"
-        alert.informativeText = "Choose the microphone, shortcuts, speech backend, and text-to-speech engine adapter-mac should use."
-        alert.alertStyle = .informational
-        if let settingsLogo = imageResource(named: "logo-settings") {
-            let alertIcon = settingsLogo.copy() as? NSImage ?? settingsLogo
-            alertIcon.size = NSSize(width: 72, height: 72)
-            alert.icon = alertIcon
-        }
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-
-        let contentStack = NSStackView()
-        contentStack.orientation = .vertical
-        contentStack.alignment = .leading
-        contentStack.spacing = 10
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let microphoneLabel = NSTextField(labelWithString: "Microphone")
-        microphoneLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        contentStack.addArrangedSubview(microphoneLabel)
-
-        let microphonePopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 28), pullsDown: false)
-        microphonePopup.addItem(withTitle: "System Default (\(audioService.systemDefaultInputDeviceName()))")
-        microphonePopup.lastItem?.representedObject = nil
-        for device in devices {
-            let title = device.isDefault ? "\(device.name) (Default)" : device.name
-            microphonePopup.addItem(withTitle: title)
-            microphonePopup.lastItem?.representedObject = device.id
-        }
-        if let selectedID = audioService.selectedInputDeviceID(),
-           let index = microphonePopup.itemArray.firstIndex(where: { ($0.representedObject as? String) == selectedID }) {
-            microphonePopup.selectItem(at: index)
-        } else {
-            microphonePopup.selectItem(at: 0)
-        }
-        contentStack.addArrangedSubview(microphonePopup)
-
-        let adapterMacShortcutControls = makeShortcutEditor(
-            label: "adapter-mac Shortcut",
-            shortcut: currentAdapterMacShortcut,
-            keyOptions: shortcutKeys
+        let draft = SettingsDraft(
+            inputDeviceID: audioService.selectedInputDeviceID(),
+            adapterShortcut: shortcutMonitor.currentShortcut(for: .adapterMac),
+            bruteShortcut: shortcutMonitor.currentShortcut(for: .bruteSession),
+            holdToRecord: RecordingShortcutSettings.holdToRecordEnabled,
+            provider: TranscriptionSettings.selectedProvider,
+            endpoint: WhisperService.shared.apiEndpoint,
+            ttsEngine: audioService.selectedTTSEngine()
         )
-        contentStack.addArrangedSubview(adapterMacShortcutControls.container)
-
-        let holdToRecordCheckbox = NSButton(checkboxWithTitle: "Hold to record adapter-mac shortcut", target: nil, action: nil)
-        holdToRecordCheckbox.state = RecordingShortcutSettings.holdToRecordEnabled ? .on : .off
-        contentStack.addArrangedSubview(holdToRecordCheckbox)
-
-        let holdToRecordHint = NSTextField(labelWithString: "Off keeps the current tap-to-toggle behavior. On starts recording on key down and stops on key up after a short hold threshold.")
-        holdToRecordHint.textColor = .secondaryLabelColor
-        holdToRecordHint.lineBreakMode = .byWordWrapping
-        holdToRecordHint.maximumNumberOfLines = 0
-        contentStack.addArrangedSubview(holdToRecordHint)
-
-        let bruteShortcutControls = makeShortcutEditor(
-            label: "Brute Session Shortcut",
-            shortcut: currentBruteShortcut,
-            keyOptions: shortcutKeys
-        )
-        contentStack.addArrangedSubview(bruteShortcutControls.container)
-
-        let transcriptionProviderLabel = NSTextField(labelWithString: "Transcription Provider")
-        transcriptionProviderLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        contentStack.addArrangedSubview(transcriptionProviderLabel)
-
-        let transcriptionProviderPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 28), pullsDown: false)
-        for provider in TranscriptionProviderOption.allCases {
-            transcriptionProviderPopup.addItem(withTitle: provider.title)
-            transcriptionProviderPopup.lastItem?.representedObject = provider.rawValue
+        let model = SettingsModel(draft: draft, devices: audioService.availableInputDevices(),
+            defaultDeviceName: audioService.systemDefaultInputDeviceName(), ttsAvailability: audioService.ttsEngineAvailabilitySummary())
+        model.onSave = { draft in
+            // Validate the complete draft before changing any persisted setting.
+            guard draft.validationMessage == nil else { return }
+            audioService.selectInputDevice(id: draft.inputDeviceID)
+            shortcutMonitor.updateShortcut(for: .adapterMac, shortcut: draft.adapterShortcut)
+            shortcutMonitor.updateShortcut(for: .bruteSession, shortcut: draft.bruteShortcut)
+            RecordingShortcutSettings.holdToRecordEnabled = draft.holdToRecord
+            TranscriptionSettings.selectedProvider = draft.provider
+            WhisperService.shared.updateAPIEndpoint(draft.endpoint)
+            audioService.selectTTSEngine(draft.ttsEngine)
         }
-        if let currentIndex = transcriptionProviderPopup.itemArray.firstIndex(where: {
-            ($0.representedObject as? String) == TranscriptionSettings.selectedProvider.rawValue
-        }) {
-            transcriptionProviderPopup.selectItem(at: currentIndex)
+        model.onToggleRecording = { [weak self] in
+            guard let self else { return }
+            // Return focus to the destination app so dictation never pastes into Settings.
+            self.settingsController?.window?.orderOut(nil)
+            self.previousApplication?.activate()
+            if self.isRecording { self.stopRecording() }
+            else { self.startRecording(mode: .pasteTranscription) }
         }
-        contentStack.addArrangedSubview(transcriptionProviderPopup)
-
-        let endpointLabel = NSTextField(labelWithString: "Backend URL")
-        endpointLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        contentStack.addArrangedSubview(endpointLabel)
-
-        let endpointField = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        endpointField.placeholderString = "http://localhost:5445/speech/transcribe"
-        endpointField.stringValue = WhisperService.shared.apiEndpoint
-        endpointField.isEnabled = TranscriptionSettings.selectedProvider == .bruteHTTP
-        contentStack.addArrangedSubview(endpointField)
-
-        let providerHint = NSTextField(labelWithString: providerHintText(for: TranscriptionSettings.selectedProvider))
-        providerHint.textColor = .secondaryLabelColor
-        providerHint.lineBreakMode = .byWordWrapping
-        providerHint.maximumNumberOfLines = 0
-        contentStack.addArrangedSubview(providerHint)
-
-        transcriptionProviderPopup.target = self
-        transcriptionProviderPopup.action = nil
-        NotificationCenter.default.addObserver(forName: NSMenu.didSendActionNotification, object: transcriptionProviderPopup.menu, queue: .main) { _ in
-            Task { @MainActor in
-                guard let rawValue = transcriptionProviderPopup.selectedItem?.representedObject as? String,
-                      let provider = TranscriptionProviderOption(rawValue: rawValue) else {
-                    return
-                }
-
-                endpointField.isEnabled = provider == .bruteHTTP
-                providerHint.stringValue = self.providerHintText(for: provider)
-            }
-        }
-
-        let ttsLabel = NSTextField(labelWithString: "TTS Engine")
-        ttsLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        contentStack.addArrangedSubview(ttsLabel)
-
-        let ttsPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 28), pullsDown: false)
-        for engine in TTSEngine.allCases {
-            ttsPopup.addItem(withTitle: engine.title)
-            ttsPopup.lastItem?.representedObject = engine.rawValue
-        }
-
-        if let currentIndex = ttsPopup.itemArray.firstIndex(where: {
-            ($0.representedObject as? String) == audioService.selectedTTSEngine().rawValue
-        }) {
-            ttsPopup.selectItem(at: currentIndex)
-        }
-        contentStack.addArrangedSubview(ttsPopup)
-
-        let ttsStatus = NSTextField(labelWithString: audioService.ttsEngineAvailabilitySummary())
-        ttsStatus.textColor = .secondaryLabelColor
-        ttsStatus.lineBreakMode = .byWordWrapping
-        ttsStatus.maximumNumberOfLines = 0
-        contentStack.addArrangedSubview(ttsStatus)
-
-        let accessoryContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 430))
-        accessoryContainer.translatesAutoresizingMaskIntoConstraints = false
-        accessoryContainer.addSubview(contentStack)
-
-        NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: accessoryContainer.leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: accessoryContainer.trailingAnchor),
-            contentStack.topAnchor.constraint(equalTo: accessoryContainer.topAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: accessoryContainer.bottomAnchor)
-        ])
-
-        alert.accessoryView = accessoryContainer
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            let selectedID = microphonePopup.selectedItem?.representedObject as? String
-            audioService.selectInputDevice(id: selectedID)
-
-            let adapterMacShortcut = shortcutOption(
-                keyPopup: adapterMacShortcutControls.keyPopup,
-                commandCheckbox: adapterMacShortcutControls.commandCheckbox,
-                optionCheckbox: adapterMacShortcutControls.optionCheckbox,
-                controlCheckbox: adapterMacShortcutControls.controlCheckbox,
-                shiftCheckbox: adapterMacShortcutControls.shiftCheckbox
-            )
-            let bruteShortcut = shortcutOption(
-                keyPopup: bruteShortcutControls.keyPopup,
-                commandCheckbox: bruteShortcutControls.commandCheckbox,
-                optionCheckbox: bruteShortcutControls.optionCheckbox,
-                controlCheckbox: bruteShortcutControls.controlCheckbox,
-                shiftCheckbox: bruteShortcutControls.shiftCheckbox
-            )
-
-            if adapterMacShortcut == bruteShortcut {
-                showError("adapter-mac and brute session shortcuts must be different.")
-                return
-            }
-
-            shortcutMonitor.updateShortcut(for: .adapterMac, shortcut: adapterMacShortcut)
-            shortcutMonitor.updateShortcut(for: .bruteSession, shortcut: bruteShortcut)
-            RecordingShortcutSettings.holdToRecordEnabled = holdToRecordCheckbox.state == .on
-
-            if let rawValue = transcriptionProviderPopup.selectedItem?.representedObject as? String,
-               let provider = TranscriptionProviderOption(rawValue: rawValue) {
-                TranscriptionSettings.selectedProvider = provider
-            }
-            WhisperService.shared.updateAPIEndpoint(endpointField.stringValue)
-
-            if let rawValue = ttsPopup.selectedItem?.representedObject as? String,
-               let engine = TTSEngine(rawValue: rawValue) {
-                audioService.selectTTSEngine(engine)
-            }
-        }
+        model.onStopPlayback = { [weak self] in self?.stopPlayback() }
+        model.onCancel = { [weak self] in self?.settingsController?.close() }
+        model.isRecording = isRecording
+        model.isPlaying = isPlayingTextToSpeech
+        settingsController = SettingsWindowController(model: model)
+        settingsController?.present()
     }
-    
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return true
+    }
+
     @objc private func quit() {
         NSApplication.shared.terminate(self)
     }
@@ -472,14 +349,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioService?.cancelRecording()
     }
 
-    @objc private func startRecordingFromMenu() {
-        startRecording(mode: .pasteTranscription)
-    }
-
-    @objc private func stopRecordingFromMenu() {
-        stopRecording()
-    }
-
     private func stopPlayback() {
         audioService?.stopPlayback()
     }
@@ -584,154 +453,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
-    private func providerHintText(for provider: TranscriptionProviderOption) -> String {
-        switch provider {
-        case .bruteHTTP:
-            return "Default and fallback option. Uses the configured brute transcription endpoint."
-        case .localFluidAudio:
-            return "On-device transcription using FluidAudio. Models download on first use and require macOS 14+."
-        case .localWhisperCPP:
-            return "On-device transcription using whisper.cpp. Good fallback when the brute endpoint is unavailable."
-        }
-    }
-
     private func updateMenuState() {
-        guard let menu else { return }
-
-        menu.item(withTitle: "Start Recording")?.isEnabled = !isRecording && !isPlayingTextToSpeech
-        menu.item(withTitle: "Stop Recording")?.isEnabled = isRecording
+        if !isRecording { settingsController?.model.audioLevel = 0 }
+        settingsController?.model.isRecording = isRecording
+        settingsController?.model.isPlaying = isPlayingTextToSpeech
         statusItem?.button?.image = menuBarImage(for: (isRecording || isPlayingTextToSpeech) ? .active : .idle)
     }
 
     private func menuBarImage(for state: MenuBarVisualState) -> NSImage? {
-        let resourceName: String
-        let description: String
-
-        switch state {
-        case .idle:
-            resourceName = "logo-silent"
-            description = "adapter-mac Idle"
-        case .active:
-            resourceName = "logo-speaking"
-            description = "adapter-mac Active"
-        }
-
-        guard let image = imageResource(named: resourceName) else {
-            return NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: description)
-        }
-
-        let menuImage = image.copy() as? NSImage ?? image
-        menuImage.size = NSSize(width: 18, height: 18)
-        menuImage.isTemplate = false
-        return menuImage
+        BrandResources.statusImage(active: state == .active)
     }
-
-    private func imageResource(named name: String) -> NSImage? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "png") else {
-            return nil
-        }
-
-        return NSImage(contentsOf: url)
-    }
-
-    private func makeShortcutEditor(
-        label: String,
-        shortcut: ShortcutOption,
-        keyOptions: [ShortcutKeyOption]
-    ) -> ShortcutEditorControls {
-        let sectionStack = NSStackView()
-        sectionStack.orientation = .vertical
-        sectionStack.alignment = .leading
-        sectionStack.spacing = 6
-        sectionStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let titleLabel = NSTextField(labelWithString: label)
-        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        sectionStack.addArrangedSubview(titleLabel)
-
-        let controlsRow = NSStackView()
-        controlsRow.orientation = .horizontal
-        controlsRow.alignment = .centerY
-        controlsRow.spacing = 8
-        controlsRow.translatesAutoresizingMaskIntoConstraints = false
-
-        let keyPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 96, height: 28), pullsDown: false)
-        for option in keyOptions {
-            keyPopup.addItem(withTitle: option.title)
-            keyPopup.lastItem?.representedObject = Int(option.keyCode)
-        }
-        if let currentIndex = keyPopup.itemArray.firstIndex(where: { ($0.representedObject as? Int) == Int(shortcut.keyCode) }) {
-            keyPopup.selectItem(at: currentIndex)
-        }
-        controlsRow.addArrangedSubview(keyPopup)
-
-        let commandCheckbox = makeModifierCheckbox(title: "⌘", enabled: (shortcut.modifiers & UInt32(cmdKey)) != 0)
-        let optionCheckbox = makeModifierCheckbox(title: "⌥", enabled: (shortcut.modifiers & UInt32(optionKey)) != 0)
-        let controlCheckbox = makeModifierCheckbox(title: "⌃", enabled: (shortcut.modifiers & UInt32(controlKey)) != 0)
-        let shiftCheckbox = makeModifierCheckbox(title: "⇧", enabled: (shortcut.modifiers & UInt32(shiftKey)) != 0)
-
-        [commandCheckbox, optionCheckbox, controlCheckbox, shiftCheckbox].forEach { checkbox in
-            controlsRow.addArrangedSubview(checkbox)
-        }
-
-        sectionStack.addArrangedSubview(controlsRow)
-
-        return ShortcutEditorControls(
-            container: sectionStack,
-            keyPopup: keyPopup,
-            commandCheckbox: commandCheckbox,
-            optionCheckbox: optionCheckbox,
-            controlCheckbox: controlCheckbox,
-            shiftCheckbox: shiftCheckbox
-        )
-    }
-
-    private func makeModifierCheckbox(title: String, enabled: Bool) -> NSButton {
-        let checkbox = NSButton(checkboxWithTitle: title, target: nil, action: nil)
-        checkbox.state = enabled ? .on : .off
-        return checkbox
-    }
-
-    private func shortcutOption(
-        keyPopup: NSPopUpButton,
-        commandCheckbox: NSButton,
-        optionCheckbox: NSButton,
-        controlCheckbox: NSButton,
-        shiftCheckbox: NSButton
-    ) -> ShortcutOption {
-        let keyCode = UInt32(keyPopup.selectedItem?.representedObject as? Int ?? Int(kVK_F12))
-        var modifiers: UInt32 = 0
-
-        if commandCheckbox.state == .on {
-            modifiers |= UInt32(cmdKey)
-        }
-        if optionCheckbox.state == .on {
-            modifiers |= UInt32(optionKey)
-        }
-        if controlCheckbox.state == .on {
-            modifiers |= UInt32(controlKey)
-        }
-        if shiftCheckbox.state == .on {
-            modifiers |= UInt32(shiftKey)
-        }
-
-        return ShortcutOption(keyCode: keyCode, modifiers: modifiers)
-    }
-}
-
-private struct ShortcutEditorControls {
-    let container: NSStackView
-    let keyPopup: NSPopUpButton
-    let commandCheckbox: NSButton
-    let optionCheckbox: NSButton
-    let controlCheckbox: NSButton
-    let shiftCheckbox: NSButton
 }
 
 extension AppDelegate: AudioServiceDelegate {
     func audioService(_ service: AudioService, didUpdateWaveform data: [Float]) {
         DispatchQueue.main.async { [weak self] in
             self?.recordingWindow?.updateWaveform(data: data)
+            if self?.settingsController?.window?.isVisible == true {
+                self?.settingsController?.model.audioLevel = data.max() ?? 0
+            }
         }
     }
 

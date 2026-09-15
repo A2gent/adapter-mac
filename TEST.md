@@ -10,14 +10,20 @@
 
 2. **Build & Run** (`Cmd+R`)
 
-3. **Проверить menu bar** - должна появиться иконка waveform.circle
+3. **Проверить menu bar** - должна появиться монохромная иконка A²gent
 
 ## Пошаговое тестирование
 
 ### Тест 1: Menu Bar Icon
 - ✅ Иконка появилась в menu bar
-- ✅ Клик по иконке → показывает меню
-- ✅ Меню содержит: Settings, Quit
+- [ ] Clicking the icon opens a nonmodal Settings window directly, without a dropdown.
+- [ ] Repeated clicks focus the same window without losing unsaved edits.
+- [ ] Overview shows the blue Caesar sphere, recording/playback controls, and Quit.
+- [ ] Audio & speech and Shortcuts remain usable at minimum window size, in light and dark mode.
+- [ ] Save applies all settings; Cancel/close discards drafts. Invalid URLs or duplicate shortcuts do not partially save.
+- [ ] Cmd+C/V/A work in the backend field; Cmd+S saves, Cmd+W closes, Cmd+Q quits.
+- [ ] The sphere stops animating when hidden/minimized; Reduce Motion disables animation.
+- [ ] Dictation started from Settings returns focus to the previous app.
 
 ### Тест 2: Permissions
 - ✅ При первом запуске запрашивает Microphone permission
@@ -119,3 +125,14 @@ afinfo /tmp/recording_*.wav
 1. Запустить через Xcode с debugger
 2. Посмотреть stack trace в момент крэша
 3. Проверить Thread Sanitizer: Product → Scheme → Edit Scheme → Diagnostics → Thread Sanitizer
+
+## Automated verification
+
+```sh
+swift test
+swift build
+xcodebuild -project adapter-mac.xcodeproj -scheme adapter-mac -configuration Debug CODE_SIGNING_ALLOWED=NO build
+xcrun swift-format lint --strict stts/Views/{SettingsWindow,BrandResources,CaesarSphereView}.swift stts/Services/SettingsDraft.swift Tests/AdapterMacTests/Settings*Tests.swift
+```
+
+Settings tests cover draft validation, save/cancel semantics, window reuse and bundled WebKit sphere loading without network access.

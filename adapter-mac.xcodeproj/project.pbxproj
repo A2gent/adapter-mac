@@ -15,9 +15,6 @@
 		1A0000010000000000000006 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000006 /* WhisperService.swift */; };
 		1A0000010000000000000007 /* RecordingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000007 /* RecordingWindow.swift */; };
 		1A0000010000000000000012 /* PlaybackWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000013 /* PlaybackWindow.swift */; };
-			1A0000010000000000000008 /* logo-settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000009 /* logo-settings.png */; };
-			1A0000010000000000000009 /* logo-silent.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000010 /* logo-silent.png */; };
-			1A0000010000000000000010 /* logo-speaking.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000011 /* logo-speaking.png */; };
 			1A0000010000000000000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000012 /* Assets.xcassets */; };
 			1A0000010000000000000013 /* TTS in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000014 /* TTS */; };
 			1A0000010000000000000014 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000015 /* AppBootstrap.swift */; };
@@ -33,6 +30,11 @@
 			1A0000010000000000000025 /* LocalWhisperCPPModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000025 /* LocalWhisperCPPModelCatalog.swift */; };
 			1A0000010000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift */; };
 			1A0000010000000000000027 /* RecordingShortcutSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000027 /* RecordingShortcutSettings.swift */; };
+		1A0000010000000000000028 /* SettingsDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000028; };
+		1A0000010000000000000029 /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000029; };
+		1A0000010000000000000030 /* BrandResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000030; };
+		1A0000010000000000000031 /* CaesarSphereView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000031; };
+		1A0000010000000000000032 /* Brand in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000032; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,9 +46,6 @@
 		1A0000020000000000000006 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
 		1A0000020000000000000007 /* RecordingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingWindow.swift; sourceTree = "<group>"; };
 		1A0000020000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		1A0000020000000000000009 /* logo-settings.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "logo-settings.png"; path = "../logo-settings.png"; sourceTree = "<group>"; };
-		1A0000020000000000000010 /* logo-silent.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "logo-silent.png"; path = "../logo-silent.png"; sourceTree = "<group>"; };
-			1A0000020000000000000011 /* logo-speaking.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "logo-speaking.png"; path = "../logo-speaking.png"; sourceTree = "<group>"; };
 			1A0000020000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 			1A0000020000000000000013 /* PlaybackWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWindow.swift; sourceTree = "<group>"; };
 			1A0000020000000000000014 /* TTS */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/TTS; sourceTree = "<group>"; };
@@ -64,6 +63,11 @@
 			1A0000020000000000000025 /* LocalWhisperCPPModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperCPPModelCatalog.swift; sourceTree = "<group>"; };
 			1A0000020000000000000026 /* LocalWhisperCPPTranscriptionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperCPPTranscriptionProvider.swift; sourceTree = "<group>"; };
 			1A0000020000000000000027 /* RecordingShortcutSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingShortcutSettings.swift; sourceTree = "<group>"; };
+		1A0000020000000000000028 /* SettingsDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDraft.swift; sourceTree = "<group>"; };
+		1A0000020000000000000029 /* SettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindow.swift; sourceTree = "<group>"; };
+		1A0000020000000000000030 /* BrandResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandResources.swift; sourceTree = "<group>"; };
+		1A0000020000000000000031 /* CaesarSphereView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaesarSphereView.swift; sourceTree = "<group>"; };
+		1A0000020000000000000032 /* Brand */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Brand; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,11 +85,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-					1A0000010000000000000008 /* logo-settings.png in Resources */,
-					1A0000010000000000000009 /* logo-silent.png in Resources */,
-					1A0000010000000000000010 /* logo-speaking.png in Resources */,
 					1A0000010000000000000011 /* Assets.xcassets in Resources */,
 					1A0000010000000000000013 /* TTS in Resources */,
+				1A0000010000000000000032 /* Brand in Resources */,
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -95,15 +97,13 @@
 		1A0000040000000000000001 /* adapter-mac */ = {
 			isa = PBXGroup;
 			children = (
-				1A0000020000000000000009 /* logo-settings.png */,
-				1A0000020000000000000010 /* logo-silent.png */,
-				1A0000020000000000000011 /* logo-speaking.png */,
 				1A0000020000000000000001 /* AppDelegate.swift */,
 				1A0000020000000000000002 /* main.swift */,
 					1A0000020000000000000015 /* AppBootstrap.swift */,
 					1A0000020000000000000008 /* Info.plist */,
 					1A0000020000000000000012 /* Assets.xcassets */,
 					1A0000020000000000000014 /* TTS */,
+				1A0000020000000000000032 /* Brand */,
 					1A0000040000000000000002 /* Services */,
 					1A0000040000000000000003 /* Views */,
 				);
@@ -113,6 +113,7 @@
 		1A0000040000000000000002 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				1A0000020000000000000028 /* SettingsDraft.swift */,
 				1A0000020000000000000003 /* GlobalShortcutMonitor.swift */,
 				1A0000020000000000000004 /* AccessibilityService.swift */,
 				1A0000020000000000000005 /* AudioService.swift */,
@@ -136,6 +137,9 @@
 		1A0000040000000000000003 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1A0000020000000000000031 /* CaesarSphereView.swift */,
+				1A0000020000000000000030 /* BrandResources.swift */,
+				1A0000020000000000000029 /* SettingsWindow.swift */,
 				1A0000020000000000000007 /* RecordingWindow.swift */,
 				1A0000020000000000000013 /* PlaybackWindow.swift */,
 			);
@@ -211,6 +215,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A0000010000000000000031 /* CaesarSphereView.swift in Sources */,
+				1A0000010000000000000030 /* BrandResources.swift in Sources */,
+				1A0000010000000000000029 /* SettingsWindow.swift in Sources */,
+				1A0000010000000000000028 /* SettingsDraft.swift in Sources */,
 				1A0000010000000000000001 /* AppDelegate.swift in Sources */,
 				1A0000010000000000000002 /* main.swift in Sources */,
 				1A0000010000000000000003 /* GlobalShortcutMonitor.swift in Sources */,

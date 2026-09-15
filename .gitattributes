@@ -1,0 +1,2 @@
+# Vendored Three.js contains GLSL template strings whose whitespace is preserved by esbuild.
+stts/Resources/Brand/caesar-sphere.js -whitespace linguist-generated=true
