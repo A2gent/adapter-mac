@@ -6,6 +6,7 @@ final class VoiceCommandTests: XCTestCase {
     private func russianWakeSettings() -> VoiceSettings {
         var settings = VoiceSettings()
         settings.agentName = "Цезарь"
+        settings.silenceSeconds = 10
         return settings
     }
 

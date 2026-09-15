@@ -101,15 +101,21 @@ private final class VoiceMicrophone: NSObject, AVCaptureAudioDataOutputSampleBuf
 
 @MainActor
 final class LocalVoiceRecognition {
-    var onText: ((String) -> Void)?
+    var onText: ((String, TimeInterval) -> Void)?
+    var onAudioLevel: ((Float) -> Void)?
     var onSegmentEnd: (() -> Void)?
-    var onSpeech: (() -> Void)?
+    var onSpeech: ((TimeInterval) -> Void)?
     var onError: ((String) -> Void)?
     private let microphone = VoiceMicrophone()
     private let decoder = VoiceWhisperDecoder()
     private var processing: Task<Void, Never>?
     private var generation = UUID()
-    private(set) var decoding = false
+    private var decodeTask: Task<Void, Never>?
+    private var decodeQueue = VoiceDecodeQueue()
+    private var stream = VoiceUtteranceStream()
+    private var latestSpeechTime: TimeInterval = 0
+    // Never send a partial command while final audio is still waiting for the decoder.
+    var decoding: Bool { decodeTask != nil || !decodeQueue.isEmpty || stream.hasUtterance }
 
     func start(
         settings: VoiceSettings, deviceID: String?,
@@ -125,7 +131,7 @@ final class LocalVoiceRecognition {
         guard allowed else { throw SessionServiceError.message("Allow microphone access in macOS Privacy & Security.") }
         try await decoder.prepare(onProgress: onProgress)
         guard generation == self.generation, !Task.isCancelled else { return }
-        await decoder.resetVAD()
+        await decoder.activityDetector.resetVAD()
         guard generation == self.generation, !Task.isCancelled else { return }
         try await microphone.start(deviceID: deviceID)
         guard generation == self.generation else { return }
@@ -140,16 +146,17 @@ final class LocalVoiceRecognition {
         generation = UUID()
         processing?.cancel()
         processing = nil
-        decoding = false
+        decodeTask?.cancel()
+        decodeTask = nil
+        decodeQueue = VoiceDecodeQueue()
+        stream = VoiceUtteranceStream()
+        latestSpeechTime = 0
+        onAudioLevel?(0)
         microphone.stop()
     }
 
     private func process(generation: UUID, language: String, vocabulary: String) async {
         var pending: [Float] = []
-        var preRoll: [Float] = []
-        var utterance: [Float] = []
-        var silenceChunks = 0
-        var lastDecodedSize = 0
         var lastAudio = ProcessInfo.processInfo.systemUptime
         do {
             while !Task.isCancelled, generation == self.generation {
@@ -159,41 +166,29 @@ final class LocalVoiceRecognition {
                     throw SessionServiceError.message(
                         "No audio received. Check the microphone and press Retry in voice settings.")
                 }
+                if !incoming.isEmpty {
+                    let energy = incoming.reduce(Float(0)) { $0 + $1 * $1 } / Float(incoming.count)
+                    onAudioLevel?(min(1, sqrt(energy) * 8))
+                }
                 pending.append(contentsOf: incoming)
+                let audioEndTime = ProcessInfo.processInfo.systemUptime
                 while pending.count >= 4096 {
                     let chunk = Array(pending.prefix(4096))
                     pending.removeFirst(4096)
-                    let probability = try await decoder.speechProbability(chunk)
+                    let probability = try await decoder.activityDetector.speechProbability(chunk)
                     guard generation == self.generation, !Task.isCancelled else { return }
                     let speech = probability >= 0.6
+                    let speechTime = audioEndTime - Double(pending.count) / 16_000
                     if speech {
-                        onSpeech?()
-                        if utterance.isEmpty { utterance = preRoll }
-                        silenceChunks = 0
-                    } else {
-                        silenceChunks += 1
+                        latestSpeechTime = speechTime
+                        onSpeech?(speechTime)
                     }
-                    preRoll = Array((preRoll + chunk).suffix(8192))
-                    if speech || !utterance.isEmpty { utterance.append(contentsOf: chunk) }
-                    let final = !utterance.isEmpty && (silenceChunks >= 3 || utterance.count >= 16_000 * 15)
-                    let partial = !utterance.isEmpty && utterance.count - lastDecodedSize >= 16_000 * 2
-                    if final || partial {
-                        decoding = true
-                        let text = try await decoder.transcribe(utterance, language: language, vocabulary: vocabulary)
-                        guard generation == self.generation, !Task.isCancelled else { return }
-                        decoding = false
-                        onText?(text)
-                        guard generation == self.generation else { return }
-                        lastDecodedSize = utterance.count
-                        if final {
-                            onSegmentEnd?()
-                            utterance.removeAll(keepingCapacity: true)
-                            lastDecodedSize = 0
-                            preRoll.removeAll(keepingCapacity: true)
-                        }
+                    if let request = stream.append(chunk, speech: speech, speechTime: speechTime) {
+                        try decodeQueue.enqueue(request)
+                        startDecoding(generation: generation, language: language, vocabulary: vocabulary)
                     }
                 }
-                try await Task.sleep(for: .milliseconds(100))
+                try await Task.sleep(for: .milliseconds(50))
             }
         } catch {
             guard generation == self.generation, !Task.isCancelled else { return }
@@ -201,4 +196,27 @@ final class LocalVoiceRecognition {
             onError?(error.localizedDescription)
         }
     }
+    private func startDecoding(generation: UUID, language: String, vocabulary: String) {
+        guard decodeTask == nil else { return }
+        decodeTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                while let request = self.decodeQueue.popFirst() {
+                    try Task.checkCancellation()
+                    let text = try await self.decoder.transcribe(
+                        request.samples, language: language, vocabulary: vocabulary)
+                    guard generation == self.generation, !Task.isCancelled else { return }
+                    self.onText?(text, max(request.speechTime, self.latestSpeechTime))
+                    guard generation == self.generation else { return }
+                    if request.isFinal { self.onSegmentEnd?() }
+                }
+                self.decodeTask = nil
+            } catch {
+                guard generation == self.generation, !Task.isCancelled else { return }
+                self.stop()
+                self.onError?(error.localizedDescription)
+            }
+        }
+    }
+
 }

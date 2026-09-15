@@ -15,7 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let holdToRecordGesture = HoldToRecordGesture(threshold: 0.3)
 
-    private var voiceController: VoiceConversationController?
+    var voiceController: VoiceConversationController?
     private var voiceStatus = "Voice listening off"
 
     var statusItem: NSStatusItem?
@@ -75,9 +75,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let button = statusItem?.button {
             button.target = self
-            button.action = #selector(openSettings)
-            button.toolTip = "A²gent · Open settings"
-            button.setAccessibilityLabel("A²gent settings")
+            button.action = #selector(openConversation)
+            button.toolTip = "A²gent · Voice conversation"
+            button.setAccessibilityLabel("A²gent voice conversation")
         }
         // Keep standard keyboard commands available without a status-item dropdown.
         let mainMenu = NSMenu()
@@ -85,7 +85,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         for item in [
             NSMenuItem(title: "New session…", action: #selector(openSessionComposer), keyEquivalent: "n"),
-            NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","),
+            NSMenuItem(title: "Settings…", action: #selector(openSettingsExpanded), keyEquivalent: ","),
             NSMenuItem(title: "Quit A²gent", action: #selector(quit), keyEquivalent: "q"),
         ] {
             item.target = self
@@ -144,32 +144,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Actions
 
+    @objc func openConversation() {
+        presentSettingsWindow(expanded: false)
+    }
+
+    @objc func openSettingsExpanded() {
+        presentSettingsWindow(expanded: true)
+    }
+
     @objc func openSettings() {
-        guard let audioService, let shortcutMonitor else { return }
-        if let frontmost = NSWorkspace.shared.frontmostApplication,
+        openConversation()
+    }
+
+    func presentVoiceConversationPassively() {
+        presentSettingsWindow(expanded: false, passive: true)
+    }
+
+    func hideVoiceConversationIfVisible() {
+        settingsController?.hideConversationIfVisible()
+    }
+
+    private func presentSettingsWindow(
+        expanded: Bool, section: SettingsSection = .general, passive: Bool = false
+    ) {
+        guard let audioService, let shortcutMonitor, let voiceController else { return }
+        if !passive,
+            let frontmost = NSWorkspace.shared.frontmostApplication,
             frontmost.processIdentifier != ProcessInfo.processInfo.processIdentifier
         {
             previousApplication = frontmost
         }
-        // Reuse the live window, preserving unsaved edits on repeated menu-bar clicks.
-        if let controller = settingsController,
-            controller.window?.isVisible == true || controller.window?.isMiniaturized == true
-        {
-            controller.present()
+        if let controller = settingsController {
+            if expanded {
+                controller.presentSettings(section: section)
+            } else {
+                controller.presentConversation(passive: passive)
+            }
             return
         }
-        let draft = SettingsDraft(
-            inputDeviceID: audioService.selectedInputDeviceID(),
-            adapterShortcut: shortcutMonitor.currentShortcut(for: .adapterMac),
-            bruteShortcut: shortcutMonitor.currentShortcut(for: .bruteSession),
-            holdToRecord: RecordingShortcutSettings.holdToRecordEnabled,
-            provider: TranscriptionSettings.selectedProvider,
-            endpoint: WhisperService.shared.apiEndpoint,
-            ttsEngine: audioService.selectedTTSEngine(),
-            voice: VoiceSettings.load()
-        )
+        let model = makeSettingsModel(audioService: audioService, shortcutMonitor: shortcutMonitor)
+        let controller = SettingsWindowController(model: model, voiceModel: voiceController.model)
+        controller.onPrepareForPresentation = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.reloadSettingsDraft(into: controller)
+        }
+        settingsController = controller
+        if expanded {
+            controller.presentSettings(section: section)
+        } else {
+            controller.presentConversation(passive: passive)
+        }
+    }
+
+    private func makeSettingsModel(audioService: AudioService, shortcutMonitor: GlobalShortcutMonitor) -> SettingsModel
+    {
         let model = SettingsModel(
-            draft: draft, devices: audioService.availableInputDevices(),
+            draft: currentSettingsDraft(audioService: audioService, shortcutMonitor: shortcutMonitor),
+            devices: audioService.availableInputDevices(),
             defaultDeviceName: audioService.systemDefaultInputDeviceName(),
             ttsAvailability: audioService.ttsEngineAvailabilitySummary())
         model.voiceStatus = voiceStatus
@@ -177,7 +208,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         model.onCancelVoiceLoading = { [weak self] in self?.voiceController?.cancelModelLoading() }
         model.onRetryVoiceLoading = { [weak self] in self?.voiceController?.retryModelLoading() }
         model.onSave = { [weak self] draft in
-            // Validate the complete draft before changing any persisted setting.
             guard draft.validationMessage == nil else { return }
             audioService.selectInputDevice(id: draft.inputDeviceID)
             shortcutMonitor.updateShortcut(for: .adapterMac, shortcut: draft.adapterShortcut)
@@ -191,7 +221,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model.onToggleRecording = { [weak self] in
             guard let self else { return }
-            // Return focus to the destination app so dictation never pastes into Settings.
             self.settingsController?.window?.orderOut(nil)
             self.previousApplication?.activate()
             if self.isRecording { self.stopRecording() } else { self.startRecording(mode: .pasteTranscription) }
@@ -201,12 +230,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         model.onCancel = { [weak self] in self?.settingsController?.close() }
         model.isRecording = isRecording
         model.isPlaying = isPlayingTextToSpeech
-        settingsController = SettingsWindowController(model: model)
-        settingsController?.present()
+        return model
+    }
+
+    private func currentSettingsDraft(
+        audioService: AudioService, shortcutMonitor: GlobalShortcutMonitor
+    ) -> SettingsDraft {
+        SettingsDraft(
+            inputDeviceID: audioService.selectedInputDeviceID(),
+            adapterShortcut: shortcutMonitor.currentShortcut(for: .adapterMac),
+            bruteShortcut: shortcutMonitor.currentShortcut(for: .bruteSession),
+            holdToRecord: RecordingShortcutSettings.holdToRecordEnabled,
+            provider: TranscriptionSettings.selectedProvider,
+            endpoint: WhisperService.shared.apiEndpoint,
+            ttsEngine: audioService.selectedTTSEngine(),
+            voice: VoiceSettings.load()
+        )
+    }
+
+    private func reloadSettingsDraft(into controller: SettingsWindowController) {
+        guard let audioService, let shortcutMonitor else { return }
+        controller.model.draft = currentSettingsDraft(audioService: audioService, shortcutMonitor: shortcutMonitor)
+        controller.model.message = nil
+        controller.model.saved = false
+        controller.collapseToConversation()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        openSettings()
+        openConversation()
         return true
     }
 
@@ -596,7 +647,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
-    private func setupVoiceConversation() {
+    func setupVoiceConversation() {
         let controller = VoiceConversationController()
         controller.onStatus = { [weak self] status, listening in
             guard let self else { return }
@@ -608,6 +659,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         controller.onModelState = { [weak self] state in
             self?.settingsController?.model.voiceModelState = state
         }
+        controller.onPresent = { [weak self] in self?.presentVoiceConversationPassively() }
+        controller.onHide = { [weak self] in self?.hideVoiceConversationIfVisible() }
         voiceController = controller
         controller.configure(VoiceSettings.load(), deviceID: AudioInputDeviceManager().selectedInputDeviceID())
     }

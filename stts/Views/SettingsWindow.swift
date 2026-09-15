@@ -44,37 +44,129 @@ final class SettingsModel: ObservableObject {
 }
 
 @MainActor
-final class SettingsWindowController: NSWindowController {
-    let model: SettingsModel
+final class SettingsWindowState: ObservableObject {
+    @Published var isExpanded = false
+    @Published var section = SettingsSection.general
 
-    init(model: SettingsModel) {
+    func expand(to section: SettingsSection = .general) {
+        self.section = section
+        isExpanded = true
+    }
+
+    func collapse() {
+        isExpanded = false
+    }
+}
+
+@MainActor
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    let model: SettingsModel
+    let voiceModel: VoiceOverlayModel
+    let windowState = SettingsWindowState()
+    private(set) var wasClosed = false
+    var onPrepareForPresentation: (() -> Void)?
+
+    var isShowingSettings: Bool { windowState.isExpanded }
+    var selectedSettingsSection: SettingsSection { windowState.section }
+
+    init(model: SettingsModel, voiceModel: VoiceOverlayModel) {
         self.model = model
+        self.voiceModel = voiceModel
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 880, height: 650),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 480),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false
         )
-        window.title = "A²gent · Settings"
+        window.title = "A²gent · Voice"
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 780, height: 590)
+        window.minSize = NSSize(width: 360, height: 420)
         window.setFrameAutosaveName("A2gentSettings")
-        window.contentView = NSHostingView(rootView: SettingsView(model: model))
         super.init(window: window)
+        window.delegate = self
+        window.contentView = NSHostingView(
+            rootView: UnifiedWindowRootView(
+                settingsModel: model, voiceModel: voiceModel, windowState: windowState
+            ) { [weak self] expanded in
+                self?.applyWindowLayout(expanded: expanded)
+            }
+        )
+        applyWindowLayout(expanded: false)
         window.center()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func present() {
-        showWindow(nil)
+    func windowWillClose(_ notification: Notification) {
+        wasClosed = true
+    }
+
+    func markReopened() {
+        wasClosed = false
+    }
+
+    func present() { presentConversation() }
+
+    func presentConversation(passive: Bool = false) {
+        prepareIfClosed()
         window?.deminiaturize(nil)
+        if passive {
+            window?.orderFrontRegardless()
+        } else {
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    func presentSettings(section: SettingsSection = .general) {
+        prepareIfClosed()
+        window?.deminiaturize(nil)
+        windowState.expand(to: section)
+        applyWindowLayout(expanded: true)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    func presentConversationPassively() {
+        presentConversation(passive: true)
+    }
+
+    func collapseToConversation() {
+        windowState.collapse()
+        applyWindowLayout(expanded: false)
+    }
+
+    func hideConversationIfVisible() {
+        guard !windowState.isExpanded else { return }
+        window?.orderOut(nil)
+    }
+
+    private func prepareIfClosed() {
+        guard wasClosed else { return }
+        onPrepareForPresentation?()
+        markReopened()
+        collapseToConversation()
+    }
+
+    private func applyWindowLayout(expanded: Bool) {
+        guard let window else { return }
+        if expanded {
+            window.minSize = NSSize(width: 780, height: 590)
+            if window.frame.width < 780 || window.frame.height < 590 {
+                window.setContentSize(NSSize(width: 880, height: 650))
+            }
+            window.title = "A²gent · Settings"
+        } else {
+            window.minSize = NSSize(width: 360, height: 420)
+            if window.frame.width > 500 || window.frame.height > 520 {
+                window.setContentSize(NSSize(width: 400, height: 480))
+            }
+            window.title = "A²gent · Voice"
+        }
+    }
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
+enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "Overview"
     case audio = "Audio & speech"
     case shortcuts = "Shortcuts"
@@ -93,24 +185,125 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "Your voice, connected to A²gent."
         case .audio: return "Choose how your Mac listens and speaks."
         case .shortcuts: return "Your next action is just a keystroke away."
-        case .voice: return "Local listening, activated by your agent’s name."
+        case .voice: return "Local listening, activated by your agent's name."
         }
     }
 }
 
-private struct SettingsView: View {
+private struct UnifiedWindowRootView: View {
+    @ObservedObject var settingsModel: SettingsModel
+    @ObservedObject var voiceModel: VoiceOverlayModel
+    @ObservedObject var windowState: SettingsWindowState
+    let onLayoutChange: (Bool) -> Void
+
+    var body: some View {
+        Group {
+            if windowState.isExpanded {
+                SettingsExpandedView(
+                    model: settingsModel,
+                    section: $windowState.section,
+                    onCollapse: {
+                        windowState.collapse()
+                        onLayoutChange(false)
+                    }
+                )
+            } else {
+                ConversationCompactView(
+                    settingsModel: settingsModel,
+                    voiceModel: voiceModel,
+                    onExpandSettings: {
+                        windowState.expand()
+                        onLayoutChange(true)
+                    },
+                    onConfigureVoice: {
+                        windowState.expand(to: .voice)
+                        onLayoutChange(true)
+                    }
+                )
+            }
+        }
+        .onChange(of: windowState.isExpanded) { _, expanded in
+            onLayoutChange(expanded)
+        }
+    }
+}
+
+private struct ConversationCompactView: View {
+    @ObservedObject var settingsModel: SettingsModel
+    @ObservedObject var voiceModel: VoiceOverlayModel
+    let onExpandSettings: () -> Void
+    let onConfigureVoice: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Voice conversation").font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Button(action: onExpandSettings) {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.plain)
+                .help("Open settings")
+                .accessibilityLabel("Open settings")
+            }
+            .padding(.horizontal, 16).padding(.top, 14)
+            VoiceOverlayView(model: voiceModel)
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                Label(settingsModel.voiceStatus, systemImage: voiceStatusSymbol)
+                    .font(.caption).foregroundStyle(.secondary)
+                if settingsModel.voiceModelState.isLoading {
+                    Text(settingsModel.voiceModelState.message).font(.caption).foregroundStyle(.secondary)
+                    if let progress = settingsModel.voiceModelState.progress {
+                        ProgressView(value: progress)
+                    } else {
+                        ProgressView()
+                    }
+                } else if settingsModel.voiceModelState.canRetry {
+                    Text(settingsModel.voiceModelState.message).font(.caption).foregroundStyle(.secondary)
+                }
+                Button("Voice settings…") { onConfigureVoice() }
+                    .buttonStyle(.link)
+                    .font(.caption)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .background(.regularMaterial)
+    }
+
+    private var voiceStatusSymbol: String {
+        switch settingsModel.voiceModelState {
+        case .ready: return "ear.badge.waveform"
+        case .loading: return "arrow.down.circle"
+        case .failed: return "exclamationmark.triangle"
+        default: return "ear"
+        }
+    }
+}
+
+private struct SettingsExpandedView: View {
     @ObservedObject var model: SettingsModel
-    @State private var section = SettingsSection.general
+    @Binding var section: SettingsSection
+    let onCollapse: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(section.rawValue).font(.system(size: 27, weight: .bold))
-                    Text(section.subtitle).foregroundStyle(.secondary)
-                }.padding(28)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(section.rawValue).font(.system(size: 27, weight: .bold))
+                        Text(section.subtitle).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(action: onCollapse) {
+                        Label("Conversation", systemImage: "bubble.left.and.bubble.right")
+                    }
+                    .help("Back to voice conversation")
+                }
+                .padding(28)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         switch section {
@@ -299,10 +492,10 @@ private struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("End phrases")
                 Stepper(
-                    "Send after \(Int(model.draft.voice.silenceSeconds)) seconds without speech",
-                    value: $model.draft.voice.silenceSeconds, in: 3...30)
+                    "Send after \(formattedSilence(model.draft.voice.silenceSeconds)) seconds without speech",
+                    value: $model.draft.voice.silenceSeconds, in: 0.5...30, step: 0.5)
                 Text(
-                    "Each command is limited to 2 minutes. Say ‘новая сессия’ to start another conversation or ‘отмена’ to discard a command."
+                    "Each command is limited to 2 minutes. Say 'новая сессия' to start another conversation or 'отмена' to discard a command."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -372,6 +565,12 @@ private struct SettingsView: View {
             }.padding(18)
         }
     }
+}
+
+private func formattedSilence(_ value: Double) -> String {
+    let rounded = (value * 2).rounded() / 2
+    if rounded.truncatingRemainder(dividingBy: 1) == 0 { return String(Int(rounded)) }
+    return String(format: "%.1f", rounded)
 }
 
 private struct ShortcutEditor: View {

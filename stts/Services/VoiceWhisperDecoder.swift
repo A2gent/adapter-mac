@@ -12,8 +12,7 @@ private final class VoiceWhisperContext: @unchecked Sendable {
 
 actor VoiceWhisperDecoder {
     private var context: VoiceWhisperContext?
-    private var vad: VadManager?
-    private var vadState = VadStreamState.initial()
+    nonisolated let activityDetector = VoiceActivityDetector()
     private let preparation = VoiceModelPreparation()
 
     func prepare(onProgress: @escaping @Sendable (VoiceModelLoadState) -> Void = { _ in }) async throws {
@@ -54,33 +53,17 @@ actor VoiceWhisperDecoder {
             }
         }
         try Task.checkCancellation()
-        if vad == nil {
-            onProgress(.loading("Preparing voice activity model…", nil))
-            vad = try await VadManager(progressHandler: { progress in
-                switch progress.phase {
-                case .downloading:
-                    onProgress(.loading("Downloading voice activity model…", progress.fractionCompleted))
-                case .compiling(let name):
-                    onProgress(.loading("Compiling voice activity model: \(name)…", nil))
-                default:
-                    onProgress(.loading("Preparing voice activity model…", nil))
-                }
-            })
-        }
+        try await activityDetector.prepare(onProgress: onProgress)
         try Task.checkCancellation()
     }
 
-    func resetVAD() { vadState = .initial() }
-
     func speechProbability(_ samples: [Float]) async throws -> Float {
-        guard let vad else { throw SessionServiceError.message("Voice activity model is not loaded.") }
-        let result = try await vad.processStreamingChunk(samples, state: vadState)
-        vadState = result.state
-        return result.probability
+        try await activityDetector.speechProbability(samples)
     }
 
     func transcribe(_ samples: [Float], language: String, vocabulary: String = "") throws -> String {
         guard let context = context?.pointer, !samples.isEmpty else { return "" }
+        try Task.checkCancellation()
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
         params.print_realtime = false
         params.print_progress = false
@@ -88,6 +71,9 @@ actor VoiceWhisperDecoder {
         params.print_special = false
         params.translate = false
         params.no_context = true
+        params.no_timestamps = true
+        // Avoid repeated temperature fallback passes in latency-sensitive live recognition.
+        params.temperature_inc = 0
         params.suppress_blank = true
         params.n_threads = Int32(max(2, min(ProcessInfo.processInfo.activeProcessorCount, 6)))
         let status = vocabulary.withCString { prompt in
@@ -192,4 +178,42 @@ private final class VoiceModelDownloadProgress: NSObject, URLSessionDownloadDele
         _ session: URLSession, downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {}
+}
+
+/// Separate actor: VAD must keep consuming microphone audio while Whisper is decoding.
+actor VoiceActivityDetector {
+    private var vad: VadManager?
+    private var vadState = VadStreamState.initial()
+    private var generation = UUID()
+
+    func prepare(onProgress: @escaping @Sendable (VoiceModelLoadState) -> Void) async throws {
+        if vad == nil {
+            onProgress(.loading("Preparing voice activity model…", nil))
+            vad = try await VadManager(progressHandler: { progress in
+                switch progress.phase {
+                case .downloading:
+                    onProgress(.loading("Downloading voice activity model…", progress.fractionCompleted))
+                case .compiling(let name):
+                    onProgress(.loading("Compiling voice activity model: \(name)…", nil))
+                default:
+                    onProgress(.loading("Preparing voice activity model…", nil))
+                }
+            })
+        }
+        try Task.checkCancellation()
+    }
+
+    func resetVAD() {
+        generation = UUID()
+        vadState = .initial()
+    }
+
+    func speechProbability(_ samples: [Float]) async throws -> Float {
+        guard let vad else { throw SessionServiceError.message("Voice activity model is not loaded.") }
+        let generation = self.generation
+        let result = try await vad.processStreamingChunk(samples, state: vadState)
+        if generation == self.generation { vadState = result.state }
+        return result.probability
+    }
+
 }

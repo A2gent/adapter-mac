@@ -44,7 +44,7 @@ final class SettingsWindowTests: XCTestCase {
     func testWindowIsReusableAndNonModal() {
         _ = NSApplication.shared
         NSWindow.allowsAutomaticWindowTabbing = false
-        let controller = SettingsWindowController(model: makeModel())
+        let controller = SettingsWindowController(model: makeModel(), voiceModel: VoiceOverlayModel())
         let window = controller.window
         controller.present()
         controller.present()
@@ -63,15 +63,19 @@ final class SettingsWindowTests: XCTestCase {
         let delegate = AppDelegate()
         delegate.audioService = AudioService()
         delegate.shortcutMonitor = GlobalShortcutMonitor()
-        delegate.openSettings()
+        delegate.voiceController = VoiceConversationController()
+        delegate.openConversation()
         let controller = delegate.settingsController
+        let window = controller?.window
         controller?.model.draft.endpoint = "https://unsaved.example/transcribe"
-        delegate.openSettings()
+        delegate.openConversation()
         XCTAssertTrue(delegate.settingsController === controller)
         XCTAssertEqual(delegate.settingsController?.model.draft.endpoint, "https://unsaved.example/transcribe")
         controller?.close()
-        delegate.openSettings()
-        XCTAssertFalse(delegate.settingsController === controller)
+        delegate.openConversation()
+        XCTAssertTrue(delegate.settingsController === controller)
+        XCTAssertTrue(delegate.settingsController?.window === window)
+        XCTAssertFalse(delegate.settingsController?.isShowingSettings == true)
         XCTAssertNotEqual(delegate.settingsController?.model.draft.endpoint, "https://unsaved.example/transcribe")
         delegate.settingsController?.close()
     }
@@ -85,7 +89,7 @@ final class SettingsWindowTests: XCTestCase {
         }
         XCTAssertNil(delegate.statusItem?.menu)
         XCTAssertTrue(delegate.statusItem?.button?.target === delegate)
-        XCTAssertEqual(delegate.statusItem?.button?.action, #selector(AppDelegate.openSettings))
+        XCTAssertEqual(delegate.statusItem?.button?.action, #selector(AppDelegate.openConversation))
         XCTAssertNotNil(delegate.statusItem?.button?.image)
     }
 
@@ -129,7 +133,7 @@ final class SettingsWindowTests: XCTestCase {
     func testBundledSphereLoadsInWebKit() async throws {
         _ = NSApplication.shared
         NSWindow.allowsAutomaticWindowTabbing = false
-        let controller = SettingsWindowController(model: makeModel())
+        let controller = SettingsWindowController(model: makeModel(), voiceModel: VoiceOverlayModel())
         let sphere = CaesarSphereView(frame: NSRect(x: 0, y: 0, width: 180, height: 180))
         controller.window?.contentView = sphere
         controller.present()

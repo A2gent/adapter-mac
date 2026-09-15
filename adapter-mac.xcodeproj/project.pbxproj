@@ -45,6 +45,7 @@
 		1A0000010000000000000083 /* VoiceConversationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000083; };
 		1A0000010000000000000084 /* VoiceOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000084; };
 		1A0000010000000000000085 /* VoiceWhisperDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000085; };
+		1A0000010000000000000086 /* VoiceUtteranceStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000086; };
         A20000000000000000000001 = {isa = PBXBuildFile; productRef = A20000000000000000000011; };
         A20000000000000000000002 = {isa = PBXBuildFile; productRef = A20000000000000000000012; };
 /* End PBXBuildFile section */
@@ -90,6 +91,7 @@
 		1A0000020000000000000083 /* VoiceConversationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceConversationController.swift; sourceTree = SOURCE_ROOT; };
 		1A0000020000000000000084 /* VoiceOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Views/VoiceOverlayWindow.swift; sourceTree = SOURCE_ROOT; };
 		1A0000020000000000000085 /* VoiceWhisperDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceWhisperDecoder.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000086 /* VoiceUtteranceStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceUtteranceStream.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +125,7 @@
 			children = (
 				1A0000020000000000000001 /* AppDelegate.swift */,
 				1A0000020000000000000085 /* VoiceWhisperDecoder.swift */,
+				1A0000020000000000000086 /* VoiceUtteranceStream.swift */,
 				1A0000020000000000000084 /* VoiceOverlayWindow.swift */,
 				1A0000020000000000000083 /* VoiceConversationController.swift */,
 				1A0000020000000000000082 /* VoiceSessionModels.swift */,
@@ -260,6 +263,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A0000010000000000000085 /* VoiceWhisperDecoder.swift in Sources */,
+				1A0000010000000000000086 /* VoiceUtteranceStream.swift in Sources */,
 				1A0000010000000000000084 /* VoiceOverlayWindow.swift in Sources */,
 				1A0000010000000000000083 /* VoiceConversationController.swift in Sources */,
 				1A0000010000000000000082 /* VoiceSessionModels.swift in Sources */,

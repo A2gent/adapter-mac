@@ -36,7 +36,8 @@ struct VoiceSettings: Codable, Equatable, Sendable {
     var enabled = false
     var agentName = "Brute"
     var endPhrases = "приём, конец команды"
-    var silenceSeconds: Double = 10
+    var silenceSeconds: Double = 1.5
+    var silenceTimingVersion: Int? = 1
     var speakReplies = true
     var localeIdentifier = "ru-RU"
 
@@ -45,7 +46,9 @@ struct VoiceSettings: Codable, Equatable, Sendable {
         guard agentName.count <= 80, endPhrases.count <= 300 else { return "Voice phrases are too long." }
         guard ["ru-RU", "en-US"].contains(localeIdentifier) else { return "Choose a supported voice language." }
         guard !endPhraseList.isEmpty else { return "Enter at least one end phrase." }
-        guard silenceSeconds.isFinite, (3...30).contains(silenceSeconds) else { return "Silence must be 3–30 seconds." }
+        guard silenceSeconds.isFinite, (0.5...30).contains(silenceSeconds) else {
+            return "Silence must be 0.5–30 seconds."
+        }
         return nil
     }
 
@@ -55,8 +58,15 @@ struct VoiceSettings: Codable, Equatable, Sendable {
 
     static func load(from defaults: UserDefaults = .standard) -> Self {
         guard let data = defaults.data(forKey: "voiceConversationSettings"),
-            let value = try? JSONDecoder().decode(Self.self, from: data), value.validationMessage == nil
+            var value = try? JSONDecoder().decode(Self.self, from: data), value.validationMessage == nil
         else { return Self() }
+        // The old 10-second default made every command feel stalled. Keep custom delays,
+        // and version new saves so explicitly choosing 10 seconds remains possible.
+        if value.silenceTimingVersion == nil {
+            if value.silenceSeconds == 10 { value.silenceSeconds = 1.5 }
+            value.silenceTimingVersion = 1
+            value.save(to: defaults)
+        }
         return value
     }
 
@@ -105,7 +115,10 @@ struct VoiceCommandState {
         text.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
     }
 
-    mutating func receive(_ hypothesis: String, now: TimeInterval) -> [VoiceCommandEvent] {
+    mutating func receive(_ hypothesis: String, now: TimeInterval, speechTime: TimeInterval? = nil)
+        -> [VoiceCommandEvent]
+    {
+        let heardAt = speechTime ?? now
         let hypothesis = String(hypothesis.prefix(12_000))
         let tokens = Self.tokens(hypothesis)
         let wake = Self.words(settings.agentName)
@@ -122,13 +135,13 @@ struct VoiceCommandState {
                 reset()
                 listening = true
                 started = now
-                lastSpeech = now
+                lastSpeech = heardAt
                 events.append(.activated)
             }
             segmentHasWake = true
         }
         guard listening else { return events }
-        if hypothesis != previousHypothesis { lastSpeech = now }
+        if hypothesis != previousHypothesis { lastSpeech = max(lastSpeech, heardAt) }
         previousHypothesis = hypothesis
         text = Self.trim([committed, Self.trim(body)].filter { !$0.isEmpty }.joined(separator: " "))
         if text.count > 8_000 {

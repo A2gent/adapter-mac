@@ -16,7 +16,7 @@
 
 ### Тест 1: Menu Bar Icon
 - ✅ Иконка появилась в menu bar
-- [ ] Clicking the icon opens a nonmodal Settings window directly, without a dropdown.
+- [ ] Clicking the icon opens the compact conversation; the gear and Cmd+, expand the same nonmodal window into Settings.
 - [ ] Repeated clicks focus the same window without losing unsaved edits.
 - [ ] Overview shows the blue Caesar sphere, recording/playback controls, and Quit.
 - [ ] Audio & speech and Shortcuts remain usable at minimum window size, in light and dark mode.
@@ -176,7 +176,7 @@ Manual acceptance (not replaced by fixture tests):
 
 - [ ] Release app: enable background voice, allow microphone, wait for initial model download. Rename the agent, Save, relaunch and verify persistence.
 - [ ] Say the name plus command without a pause. Sphere/cue appears and text after the name is retained. Normal room conversation without the name creates no backend requests.
-- [ ] Test stop suffix and ten seconds of VAD silence with fan/background noise; a word mentioned inside a sentence does not terminate it unless it is the trailing stop phrase.
+- [ ] Test stop suffix and 1.5 seconds of VAD silence (or the saved custom delay) with fan/background noise; a word mentioned inside a sentence does not terminate it unless it is the trailing stop phrase.
 - [ ] Say a second name-prefixed command while Brute works; verify it is serialized into the same session. Use new-session commands and check context separation.
 - [ ] Toggle spoken replies; confirm local voice speaks once and does not activate itself. F12 playback and F11/F12 recording pause background capture. Escape cancels the active draft/speech.
 - [ ] Verify no recording files are created by background voice; observe memory during 30 minutes of idle and conversation. Use Release for performance acceptance.
@@ -196,3 +196,20 @@ Lint task files with `xcrun swift-format lint --strict` followed by their Swift 
 - `VOICE_SMOKE_AUDIO="$PWD/build/voice-smoke/russian.wav" swift test`: 78 tests pass, including real Whisper/VAD decoding (no microphone fixture recording).
 - Xcode Debug build and strict swift-format lint on changed Swift files pass. Repository-wide formatting debt remains tracked as A-39.
 - Cold network download UI was not exercised manually because models were already cached. Preparation tests cover cancellation reaching the loader, immediate retry serialization, retry after failure, and reuse of successful preparation. Do not delete the user's cached models to test downloads.
+
+## Unified window and voice latency verification (2026-09-15)
+
+- `VOICE_SMOKE_AUDIO="$PWD/build/voice-smoke/russian.wav" swift test -c release`: 96 tests pass, including real Whisper/VAD. The 2.816-second Russian fixture decoded in approximately 0.94 seconds on this host (decoder only, not microphone-to-reply latency).
+- `swift test` / `swift build` and Xcode Debug build pass. Changed Swift files pass strict swift-format. Repository-wide formatting findings remain tracked in A-39; unrelated files were not reformatted.
+- Regression tests cover single window/model identity, draft preservation across expansion/hiding, saved settings on reopen, no microphone startup in UI tests, partial coalescing, final ordering, bounded backlog, sub-second partial cadence, silence migration, and speech-time-based deadlines.
+- Review fixes include passive presentation without app activation, explicit Cancel/Hide behavior, Send waiting for pending decoding, fresh capture on session reset, and cancelled feedback suppression without cancelling an accepted backend task.
+
+Manual acceptance still required with the actual microphone and a running Brute:
+
+1. Use a Release app. Tray opens the sphere; gear expands navigation and Conversation returns. Edit a setting, expand/collapse, and confirm the draft survives. Close/reopen and verify only saved settings remain.
+2. Speak Russian and English commands. Verify live sphere levels before wake detection, revised text during speech, and no duplicate words at segment boundaries.
+3. Pause for the configured timeout, including while decoder load is high; the final recognized audio must be included before submission. Send is unavailable while decoding is pending.
+4. Keep another app focused during wake activation, then edit Settings using real keys. Verify only one conversation/settings window exists, including across Spaces/fullscreen apps.
+5. Cancel during a pending reply: the backend session still exists but must not speak on completion. Check noise, Bluetooth input, disconnects, and recovery.
+
+No live-microphone, live-backend, or native screenshot acceptance is claimed by the fixture/unit tests. The already running Xcode app was not restarted automatically.

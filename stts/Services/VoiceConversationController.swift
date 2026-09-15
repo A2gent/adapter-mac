@@ -14,7 +14,9 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
     private let recognition = LocalVoiceRecognition()
     private let speaker = AVSpeechSynthesizer()
     private let service = BruteSessionService()
-    private var overlay: VoiceOverlayWindow?
+    let model = VoiceOverlayModel()
+    var onPresent: (() -> Void)?
+    var onHide: (() -> Void)?
     private var settings = VoiceSettings()
     private var machine = VoiceCommandState(settings: VoiceSettings())
     private var timer: Task<Void, Never>?
@@ -30,17 +32,30 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
     private var pending: [(text: String, newSession: Bool)] = []
     private var deferredReplies: [String] = []
     private var generation = UUID()
+    private var feedbackGeneration = UUID()
 
     override init() {
         super.init()
         speaker.delegate = self
-        recognition.onText = { [weak self] text in
+        model.onSend = { [weak self] in
+            guard let self, !self.recognition.decoding else { return }
+            self.handle(self.machine.finish())
+        }
+        model.onCancel = { [weak self] in self?.cancel() }
+        model.onNewSession = { [weak self] in self?.resetSession() }
+        model.onOpenSession = { [weak self] in
+            if let id = self?.sessionID, let url = BruteSessionService.caesarURL(sessionID: id) {
+                NSWorkspace.shared.open(url)
+            }
+        }
+        recognition.onText = { [weak self] text, speechTime in
             guard let self else { return }
-            self.handle(self.machine.receive(text, now: ProcessInfo.processInfo.systemUptime))
+            self.handle(self.machine.receive(text, now: ProcessInfo.processInfo.systemUptime, speechTime: speechTime))
             if self.machine.listening { self.showListening() }
         }
-        recognition.onSpeech = { [weak self] in
-            self?.machine.speechDetected(now: ProcessInfo.processInfo.systemUptime)
+        recognition.onAudioLevel = { [weak self] level in self?.model.audioLevel = level }
+        recognition.onSpeech = { [weak self] time in
+            self?.machine.speechDetected(now: time)
         }
         recognition.onSegmentEnd = { [weak self] in self?.machine.finishSegment() }
         recognition.onError = { [weak self] error in self?.fail(error) }
@@ -55,6 +70,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         enabled = settings.enabled
         failed = false
         machine = VoiceCommandState(settings: settings)
+        model.canSend = false
         stopStartup()
         recognition.stop()
         timer?.cancel()
@@ -67,8 +83,9 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             work?.cancel()
             work = nil
             pending.removeAll()
-            overlay?.orderOut(nil)
             modelState = .idle
+            model.status = "Voice listening off"
+            model.activity = "idle"
             onStatus?("Voice listening off", false)
             return
         }
@@ -76,6 +93,9 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled, let self else { return }
+                if self.machine.listening {
+                    self.model.canSend = !self.machine.text.isEmpty && !self.recognition.decoding
+                }
                 if !self.failed && !self.recognition.decoding {
                     self.handle(self.machine.tick(now: ProcessInfo.processInfo.systemUptime))
                 }
@@ -101,7 +121,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             speaker.stopSpeaking(at: .immediate)
             speaking = false
             currentUtterance = nil
-            overlay?.orderOut(nil)
+            onHide?()
             if enabled { onStatus?("Voice paused for dictation/playback", false) }
         } else {
             if !deferredReplies.isEmpty { speakDeferredReply() }
@@ -110,45 +130,31 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     func cancel() {
+        feedbackGeneration = UUID()
+        stopStartup()
         machine.reset()
+        model.text = ""
+        model.canSend = false
+        model.status = enabled ? "Say \(settings.agentName) to start" : "Voice listening off"
         speaker.stopSpeaking(at: .immediate)
         speaking = false
         currentUtterance = nil
         deferredReplies.removeAll()
         pending.removeAll()
         failed = false
-        overlay?.orderOut(nil)
+        onHide?()
         // A submitted backend task is not cancelled by hiding the microphone HUD.
         recognition.stop()
         resumeListening()
     }
 
-    private func window() -> VoiceOverlayWindow {
-        if let overlay { return overlay }
-        let window = VoiceOverlayWindow()
-        window.model.onSend = { [weak self] in
-            guard let self else { return }
-            self.handle(self.machine.finish())
-        }
-        window.model.onCancel = { [weak self] in self?.cancel() }
-        window.model.onNewSession = { [weak self] in self?.resetSession() }
-        window.model.onOpenSession = { [weak self] in
-            if let id = self?.sessionID, let url = BruteSessionService.caesarURL(sessionID: id) {
-                NSWorkspace.shared.open(url)
-            }
-        }
-        overlay = window
-        return window
-    }
-
     private func showListening() {
-        let window = window()
-        window.model.status = "Listening · \(Int(settings.silenceSeconds))s silence to send"
-        window.model.text = machine.text
-        window.model.activity = "listening"
-        window.model.canSend = !machine.text.isEmpty
-        window.model.canReset = work == nil
-        window.orderFrontRegardless()
+        model.status = "Listening · \(settings.silenceSeconds.formatted())s silence to send"
+        model.text = machine.text
+        model.activity = "listening"
+        model.canSend = !machine.text.isEmpty && !recognition.decoding
+        model.canReset = work == nil
+        onPresent?()
     }
 
     private func stopStartup() {
@@ -163,13 +169,14 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         recognition.stop()
         failed = true
         modelState = .cancelled
+        model.status = "Voice setup cancelled"
+        model.activity = "idle"
         onStatus?("Voice setup cancelled. Retry when ready.", false)
     }
 
     func retryModelLoading() {
         guard enabled, modelState.canRetry else { return }
         failed = false
-        overlay?.orderOut(nil)
         modelState = .idle
         resumeListening()
     }
@@ -178,6 +185,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         guard enabled, !suspended, !speaking, !failed else { return }
         stopStartup()
         let id = startupID
+        model.activity = "idle"
+        if model.text.isEmpty { model.status = "Starting local voice listening…" }
         modelState = .loading("Checking microphone permission and cached voice models…", nil)
         onStatus?("Starting local voice listening…", false)
         startup = Task { [weak self] in
@@ -196,6 +205,10 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
                 }
                 self.startup = nil
                 self.modelState = .ready
+                if !self.machine.listening && self.work == nil && self.model.text.isEmpty {
+                    self.model.status = "Say \(self.settings.agentName) to start"
+                }
+                self.model.activity = "listening"
                 self.onStatus?("Listening locally for \(self.settings.agentName)", true)
             } catch {
                 guard !Task.isCancelled, self.startupID == id else { return }
@@ -212,33 +225,31 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
                 showListening()
             case .cancelled:
                 recognition.stop()
-                overlay?.orderOut(nil)
+                onHide?()
                 resumeListening()
                 speakDeferredReply()
             case .newSession:
                 resetSession()
-                recognition.stop()
-                resumeListening()
             case .limitReached:
-                window().model.text = machine.text
+                model.text = machine.text
                 fail(
                     "Command limit reached (2 minutes / 8,000 characters). Copy the draft below or press Send explicitly."
                 )
-                window().model.canSend = !machine.text.isEmpty
+                model.canSend = !machine.text.isEmpty
             case .submit(let text, let newSession):
                 recognition.stop()
                 guard pending.count + deferredReplies.count < 3 else {
                     machine.reset()
-                    window().model.text = text
+                    model.text = text
                     fail("Voice queue is full. This command was not sent; copy it below.")
                     return
                 }
                 failed = false
                 pending.append((text, newSession))
-                window().model.text = text
-                window().model.canSend = false
-                window().model.status = "Sent / queued · say \(settings.agentName) for another command"
-                window().model.activity = "idle"
+                model.text = text
+                model.canSend = false
+                model.status = "Sent / queued · say \(settings.agentName) for another command"
+                model.activity = "idle"
                 processNext()
                 resumeListening()
             }
@@ -247,16 +258,18 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
 
     private func resetSession() {
         guard work == nil, pending.isEmpty else {
-            window().model.status = "Wait for the current reply before resetting the session"
+            model.status = "Wait for the current reply before resetting the session"
             return
         }
+        recognition.stop()
         sessionID = nil
         sessionBaseURL = nil
         machine.reset()
-        window().model.session = "New voice session · Knowledge Base"
-        window().model.status = "Say \(settings.agentName) to start a new session"
-        window().model.text = ""
-        window().model.canSend = false
+        model.session = "New voice session · Knowledge Base"
+        model.status = "Say \(settings.agentName) to start a new session"
+        model.text = ""
+        model.canSend = false
+        resumeListening()
     }
 
     private func processNext() {
@@ -267,7 +280,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             sessionBaseURL = nil
         }
         let currentGeneration = generation
-        window().model.canReset = false
+        let feedback = feedbackGeneration
+        model.canReset = false
         work = Task { [weak self] in
             guard let self else { return }
             do {
@@ -301,7 +315,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
                     guard currentGeneration == self.generation, !Task.isCancelled else { return }
                     self.sessionID = created.id
                     self.sessionBaseURL = baseURL
-                    self.window().model.session = "Voice · \(created.id.prefix(8)) · Open in Caesar"
+                    self.model.session = "Voice · \(created.id.prefix(8)) · Open in Caesar"
                     let deadline = ProcessInfo.processInfo.systemUptime + 600
                     var result: String?
                     while !Task.isCancelled && ProcessInfo.processInfo.systemUptime < deadline {
@@ -314,7 +328,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
                             result = snapshot.reply
                             break
                         }
-                        try await Task.sleep(for: .seconds(2))
+                        try await Task.sleep(for: .milliseconds(500))
                     }
                     guard let result else {
                         throw SessionServiceError.message(
@@ -324,14 +338,16 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
                 }
                 guard currentGeneration == self.generation, !Task.isCancelled else { return }
                 self.work = nil
-                self.window().model.session = "Voice · \(self.sessionID?.prefix(8) ?? "") · Open in Caesar"
-                self.window().model.canReset = self.pending.isEmpty
-                if !self.machine.listening {
-                    self.window().model.status = "Agent replied · say \(self.settings.agentName) to continue"
-                    self.window().model.text = reply
-                    self.window().model.activity = "idle"
+                self.model.session = "Voice · \(self.sessionID?.prefix(8) ?? "") · Open in Caesar"
+                self.model.canReset = self.pending.isEmpty
+                if !self.machine.listening && feedback == self.feedbackGeneration {
+                    self.model.status = "Agent replied · say \(self.settings.agentName) to continue"
+                    self.model.text = reply
+                    self.model.activity = "idle"
                 }
-                if self.settings.speakReplies { self.deferredReplies.append(String(reply.prefix(12_000))) }
+                if self.settings.speakReplies && feedback == self.feedbackGeneration {
+                    self.deferredReplies.append(String(reply.prefix(12_000)))
+                }
                 self.processNext()
                 self.speakDeferredReply()
             } catch {
@@ -339,7 +355,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
                 self.work = nil
                 let unsent = self.pending.map(\.text) + (self.machine.text.isEmpty ? [] : [self.machine.text])
                 self.pending.removeAll()
-                self.window().model.text = ([command.text] + unsent).joined(separator: "\n\n")
+                self.model.text = ([command.text] + unsent).joined(separator: "\n\n")
                 self.machine.reset()
                 self.fail(
                     "\(error.localizedDescription)\nNo automatic retry. The request may already be accepted; check Caesar before sending again. Drafts are shown below."
@@ -362,9 +378,9 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         recognition.stop()
         speaking = true
         onStatus?("Speaking · microphone paused", false)
-        window().model.activity = "speaking"
-        window().model.status = "Speaking · microphone paused"
-        window().orderFrontRegardless()
+        model.activity = "speaking"
+        model.status = "Speaking · microphone paused"
+        onPresent?()
         let utterance = AVSpeechUtterance(string: String(text.prefix(12_000)))
         utterance.voice = AVSpeechSynthesisVoice(language: settings.localeIdentifier)
         currentUtterance = utterance
@@ -376,7 +392,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             guard let self, self.speaking, self.currentUtterance === utterance else { return }
             self.speaking = false
             self.currentUtterance = nil
-            self.overlay?.orderOut(nil)
+            // Keep the reply visible in the conversation window.
             // Let the loudspeaker tail decay before rearming the microphone.
             try? await Task.sleep(for: .milliseconds(500))
             if !self.deferredReplies.isEmpty { self.speakDeferredReply() } else { self.resumeListening() }
@@ -388,14 +404,13 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         stopStartup()
         modelState = .failed(message)
         recognition.stop()
-        let window = window()
-        if machine.listening { window.model.text = machine.text }
+        if machine.listening { model.text = machine.text }
         machine.finishSegment()
-        window.model.status = message
-        window.model.activity = "idle"
-        window.model.canReset = work == nil
-        window.model.canSend = false
-        if !suspended { window.orderFrontRegardless() }
+        model.status = message
+        model.activity = "idle"
+        model.canReset = work == nil
+        model.canSend = false
+        if !suspended { onPresent?() }
         onStatus?("Voice paused: \(message)", false)
     }
 }

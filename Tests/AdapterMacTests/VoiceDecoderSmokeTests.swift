@@ -28,7 +28,11 @@ final class VoiceDecoderSmokeTests: XCTestCase {
             speechDetected = speechDetected || probability >= 0.6
         }
         XCTAssertTrue(speechDetected)
+        let start = ProcessInfo.processInfo.systemUptime
         let text = try await decoder.transcribe(samples, language: "ru", vocabulary: "Цезарь. приём, конец команды")
+        print(
+            "VOICE_BENCHMARK audio=\(Double(samples.count) / 16_000)s decode=\(ProcessInfo.processInfo.systemUptime - start)s"
+        )
         var settings = VoiceSettings()
         settings.agentName = "Цезарь"
         var machine = VoiceCommandState(settings: settings)
