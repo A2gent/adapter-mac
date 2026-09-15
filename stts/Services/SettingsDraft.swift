@@ -8,12 +8,14 @@ struct SettingsDraft: Equatable {
     var provider: TranscriptionProviderOption
     var endpoint: String
     var ttsEngine: TTSEngine
+    var voice = VoiceSettings()
 
     var validationMessage: String? {
+        if let message = voice.validationMessage { return message }
         if adapterShortcut == bruteShortcut {
             return "Dictation and Brute session shortcuts must be different."
         }
-        if provider == .bruteHTTP {
+        if provider == .bruteHTTP || voice.enabled {
             let value = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let url = URL(string: value),
                 let scheme = url.scheme?.lowercased(),

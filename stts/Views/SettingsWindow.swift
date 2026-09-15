@@ -15,6 +15,7 @@ final class SettingsModel: ObservableObject {
     @Published var audioLevel: Float = 0
     @Published var message: String?
     @Published var saved = false
+    @Published var voiceStatus = "Voice listening off"
     let devices: [AudioInputDevice]
     let defaultDeviceName: String
     let ttsAvailability: String
@@ -74,12 +75,14 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "Overview"
     case audio = "Audio & speech"
     case shortcuts = "Shortcuts"
+    case voice = "Voice conversation"
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .general: return "slider.horizontal.3"
         case .audio: return "waveform"
         case .shortcuts: return "keyboard"
+        case .voice: return "ear.badge.waveform"
         }
     }
     var subtitle: String {
@@ -87,6 +90,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "Your voice, connected to A²gent."
         case .audio: return "Choose how your Mac listens and speaks."
         case .shortcuts: return "Your next action is just a keystroke away."
+        case .voice: return "Local listening, activated by your agent’s name."
         }
     }
 }
@@ -110,6 +114,7 @@ private struct SettingsView: View {
                         case .general: overview
                         case .audio: audio
                         case .shortcuts: shortcuts
+                        case .voice: voice
                         }
                     }.padding(.horizontal, 28).padding(.bottom, 24)
                 }
@@ -183,8 +188,10 @@ private struct SettingsView: View {
             } label: {
                 Label("New session with screen context", systemImage: "plus.bubble")
             }.buttonStyle(.borderedProminent)
-            Text("Voice sessions go straight to Knowledge Base. Both modes automatically capture the current display.")
-                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(
+                "F11 sends to Knowledge Base with a screenshot. Background voice conversations never capture the screen."
+            )
+            .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             HStack(spacing: 14) {
                 summary("Dictation & read aloud", value: model.draft.adapterShortcut.title, symbol: "mic")
                 summary("New Brute session", value: model.draft.bruteShortcut.title, symbol: "sparkles")
@@ -250,6 +257,45 @@ private struct SettingsView: View {
                 Text(model.ttsAvailability).font(.caption).foregroundStyle(.secondary)
                 Text("edge-tts sends selected text to Microsoft. Choose System Voice for local-only speech.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var voice: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            card("Background listening", symbol: "ear") {
+                Toggle("Listen while the app is running", isOn: $model.draft.voice.enabled)
+                Text(model.voiceStatus).font(.caption).foregroundStyle(.secondary)
+                TextField("Agent name / wake phrase", text: $model.draft.voice.agentName)
+                    .textFieldStyle(.roundedBorder)
+                Picker("Recognition language", selection: $model.draft.voice.localeIdentifier) {
+                    Text("Русский").tag("ru-RU")
+                    Text("English (US)").tag("en-US")
+                }
+                Text(
+                    "Say the name before every command. Uses the selected microphone and local multilingual whisper.cpp and voice activity detection. No cloud fallback or audio files. First use downloads models (~500 MB) from Hugging Face."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            card("Command and reply", symbol: "bubble.left.and.bubble.right") {
+                TextField("End phrases (comma-separated)", text: $model.draft.voice.endPhrases)
+                    .textFieldStyle(.roundedBorder)
+                Stepper(
+                    "Send after \(Int(model.draft.voice.silenceSeconds)) seconds without speech",
+                    value: $model.draft.voice.silenceSeconds, in: 3...30)
+                Toggle("Speak agent replies (local system voice)", isOn: $model.draft.voice.speakReplies)
+                Text(
+                    "The microphone pauses during replies and F11/F12 recording or playback. Each command is limited to 2 minutes. Say ‘новая сессия’ to start another conversation or ‘отмена’ to discard a command."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            card("Dedicated voice session", symbol: "bubble.left") {
+                TextField("Brute transcription / backend URL", text: $model.draft.endpoint)
+                    .textFieldStyle(.roundedBorder)
+                Text(
+                    "Recognized commands go to a separate Knowledge Base session in Brute. No automatic screenshots. The session is kept for this app launch, independent of the open Caesar tab. Open Caesar for interactive agent questions."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
     }

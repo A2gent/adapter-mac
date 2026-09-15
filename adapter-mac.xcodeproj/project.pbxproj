@@ -39,6 +39,14 @@
 		1A0000010000000000000034 /* DisplayCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000034; };
 		1A0000010000000000000035 /* SessionComposerWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000035; };
 		1A0000010000000000000036 /* ScreenshotAnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000036; };
+		1A0000010000000000000080 /* VoiceCommandState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000080; };
+		1A0000010000000000000081 /* LocalVoiceRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000081; };
+		1A0000010000000000000082 /* VoiceSessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000082; };
+		1A0000010000000000000083 /* VoiceConversationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000083; };
+		1A0000010000000000000084 /* VoiceOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000084; };
+		1A0000010000000000000085 /* VoiceWhisperDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000085; };
+        A20000000000000000000001 = {isa = PBXBuildFile; productRef = A20000000000000000000011; };
+        A20000000000000000000002 = {isa = PBXBuildFile; productRef = A20000000000000000000012; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -76,6 +84,12 @@
 		1A0000020000000000000034 /* DisplayCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCaptureService.swift; sourceTree = "<group>"; };
 		1A0000020000000000000035 /* SessionComposerWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionComposerWindow.swift; sourceTree = "<group>"; };
 		1A0000020000000000000036 /* ScreenshotAnnotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotAnnotationView.swift; sourceTree = "<group>"; };
+		1A0000020000000000000080 /* VoiceCommandState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceCommandState.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000081 /* LocalVoiceRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/LocalVoiceRecognition.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000082 /* VoiceSessionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceSessionModels.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000083 /* VoiceConversationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceConversationController.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000084 /* VoiceOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Views/VoiceOverlayWindow.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000085 /* VoiceWhisperDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceWhisperDecoder.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +97,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                A20000000000000000000001,
+                A20000000000000000000002,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,6 +122,12 @@
 			isa = PBXGroup;
 			children = (
 				1A0000020000000000000001 /* AppDelegate.swift */,
+				1A0000020000000000000085 /* VoiceWhisperDecoder.swift */,
+				1A0000020000000000000084 /* VoiceOverlayWindow.swift */,
+				1A0000020000000000000083 /* VoiceConversationController.swift */,
+				1A0000020000000000000082 /* VoiceSessionModels.swift */,
+				1A0000020000000000000081 /* LocalVoiceRecognition.swift */,
+				1A0000020000000000000080 /* VoiceCommandState.swift */,
 				1A0000020000000000000002 /* main.swift */,
 					1A0000020000000000000015 /* AppBootstrap.swift */,
 					1A0000020000000000000008 /* Info.plist */,
@@ -190,12 +212,21 @@
 			dependencies = (
 			);
 			name = "adapter-mac";
+			packageProductDependencies = (A20000000000000000000011, A20000000000000000000012);
 			productName = "adapter-mac";
 			productReference = 1AFFFFFFFF0000000000001 /* adapter-mac.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+        A20000000000000000000021 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/FluidInference/FluidAudio.git"; requirement = {kind = exactVersion; version = 0.15.4; }; };
+        A20000000000000000000022 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/ggerganov/whisper.spm.git"; requirement = {kind = branch; branch = master; }; };
+/* End XCRemoteSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+        A20000000000000000000011 = {isa = XCSwiftPackageProductDependency; package = A20000000000000000000021; productName = FluidAudio; };
+        A20000000000000000000012 = {isa = XCSwiftPackageProductDependency; package = A20000000000000000000022; productName = whisper; };
+/* End XCSwiftPackageProductDependency section */
 /* Begin PBXProject section */
 		1A0000080000000000000001 /* Project object */ = {
 			isa = PBXProject;
@@ -216,6 +247,7 @@
 			productRefGroup = 1A0000040000000000000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (A20000000000000000000021, A20000000000000000000022);
 			targets = (
 				1A0000050000000000000001 /* adapter-mac */,
 			);
@@ -227,6 +259,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A0000010000000000000085 /* VoiceWhisperDecoder.swift in Sources */,
+				1A0000010000000000000084 /* VoiceOverlayWindow.swift in Sources */,
+				1A0000010000000000000083 /* VoiceConversationController.swift in Sources */,
+				1A0000010000000000000082 /* VoiceSessionModels.swift in Sources */,
+				1A0000010000000000000081 /* LocalVoiceRecognition.swift in Sources */,
+				1A0000010000000000000080 /* VoiceCommandState.swift in Sources */,
 				1A0000010000000000000036 /* ScreenshotAnnotationView.swift in Sources */,
 				1A0000010000000000000035 /* SessionComposerWindow.swift in Sources */,
 				1A0000010000000000000034 /* DisplayCaptureService.swift in Sources */,

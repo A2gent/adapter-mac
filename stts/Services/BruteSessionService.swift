@@ -120,12 +120,24 @@ struct BruteSessionService: Sendable {
         return session
     }
 
-    private func send(baseURL: URL, path: String, body: Data? = nil) async throws -> Data {
+    func voiceChat(baseURL: URL, sessionID: String, message: String) async throws -> VoiceChatReply {
+        let data = try await send(
+            baseURL: baseURL, path: "sessions/\(sessionID)/chat",
+            body: JSONEncoder().encode(["message": message]), timeout: 600)
+        return try JSONDecoder().decode(VoiceChatReply.self, from: data)
+    }
+
+    func voiceSnapshot(baseURL: URL, sessionID: String) async throws -> VoiceSessionSnapshot {
+        let data = try await send(baseURL: baseURL, path: "sessions/\(sessionID)")
+        return try JSONDecoder().decode(VoiceSessionSnapshot.self, from: data)
+    }
+
+    private func send(baseURL: URL, path: String, body: Data? = nil, timeout: TimeInterval = 30) async throws -> Data {
         guard ["http", "https"].contains(baseURL.scheme?.lowercased() ?? ""), baseURL.host != nil else {
             throw SessionServiceError.message("Configure a valid Brute HTTP URL in Audio & speech settings.")
         }
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
-        request.timeoutInterval = 30
+        request.timeoutInterval = timeout
         request.httpMethod = body == nil ? "GET" : "POST"
         request.httpBody = body
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }

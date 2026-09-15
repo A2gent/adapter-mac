@@ -158,3 +158,30 @@ Lint the new session files:
 ```sh
 xcrun swift-format lint --strict stts/Services/{BruteSessionService,DisplayCaptureService}.swift stts/Views/{SessionComposerWindow,ScreenshotAnnotationView,SettingsWindow}.swift Tests/AdapterMacTests/{SessionRequest,SessionComposer,BruteSessionService}Tests.swift
 ```
+
+## Background voice verification
+
+Automated unit tests cover configurable wake-name boundaries, same-utterance commands, partial STT revision, segment rollover, VAD-driven silence, cancellation, new session commands, text/audio bounds, settings persistence, continued-chat JSON, assistant-only replies, and HTTP errors.
+
+An opt-in real-model smoke test uses synthetic Russian audio, not the microphone. It downloads models on first run. Use Release to measure realistic decoding latency:
+
+```sh
+mkdir -p build/voice-smoke
+say -v Milena -o build/voice-smoke/russian.aiff 'Цезарь, проверь тесты. Конец команды.'
+afconvert -f WAVE -d LEF32@16000 -c 1 build/voice-smoke/russian.aiff build/voice-smoke/russian.wav
+VOICE_SMOKE_AUDIO="$PWD/build/voice-smoke/russian.wav" swift test -c release --filter VoiceDecoderSmokeTests
+```
+
+Manual acceptance (not replaced by fixture tests):
+
+- [ ] Release app: enable background voice, allow microphone, wait for initial model download. Rename the agent, Save, relaunch and verify persistence.
+- [ ] Say the name plus command without a pause. Sphere/cue appears and text after the name is retained. Normal room conversation without the name creates no backend requests.
+- [ ] Test stop suffix and ten seconds of VAD silence with fan/background noise; a word mentioned inside a sentence does not terminate it unless it is the trailing stop phrase.
+- [ ] Say a second name-prefixed command while Brute works; verify it is serialized into the same session. Use new-session commands and check context separation.
+- [ ] Toggle spoken replies; confirm local voice speaks once and does not activate itself. F12 playback and F11/F12 recording pause background capture. Escape cancels the active draft/speech.
+- [ ] Verify no recording files are created by background voice; observe memory during 30 minutes of idle and conversation. Use Release for performance acceptance.
+- [ ] Disable during model loading, capture, decoding, and a pending HTTP request. No stale callback may reactivate capture or speech.
+- [ ] Disconnect microphone, deny permission, interrupt backend connectivity, overflow the queue, and exceed the command limit. Errors pause capture; drafts stay visible and uncertain requests are not retried.
+- [ ] Verify the HUD in full-screen apps/multiple Spaces, keyboard focus preservation, screen lock/sleep/wake recovery, and local Russian voice availability.
+
+Lint task files with `xcrun swift-format lint --strict` followed by their Swift paths. Full repository lint is `xcrun swift-format lint --strict --recursive stts Tests`; unrelated pre-existing formatting debt is tracked separately.

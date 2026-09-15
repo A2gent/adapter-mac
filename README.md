@@ -155,3 +155,22 @@ Private project
 ### Decisions for this change
 
 The user chose direct audio-to-session submission and automatic screen capture. Voice defaults to Knowledge Base; manual sessions require explicit project selection. The previously created empty session is left unchanged: the old client omitted `project_id` and sent an unsupported `prompt` field, so the backend stored no initial message to recover.
+
+## Local background voice conversations
+
+Open **Settings > Voice conversation**, enable **Listen while the app is running**, set the **Agent name / wake phrase**, and Save. Listening is opt-in; **Speak agent replies** is enabled by default and uses local macOS system voices independently of the F12 TTS engine.
+
+- Say the name before **every** command: `Цезарь, проверь тесты, приём`.
+- Activation shows the existing blue sphere and plays a short local Tink cue. A dot in the menu bar indicates the armed microphone; the tooltip and Settings show readiness/errors.
+- Finish with a configured suffix (`приём`, `конец команды` by default), the Send button, or 10 seconds without detected speech (adjustable 3–30 seconds).
+- `Цезарь, новая сессия, приём` starts a fresh context for the next command. `Цезарь, новая сессия, проверь память, приём` immediately submits to a new context. `Цезарь, отмена` discards the active utterance. Reset without a task is rejected while the current backend turn is running; a new-session task can be queued.
+- First submission creates a dedicated Knowledge Base session. Later commands reuse its ID, independent of the open Caesar tab. No screenshot or focused-app text is captured. The voice session is retained only during the current app launch.
+- Commands are serialized, with at most three waiting commands/replies. The microphone pauses during local spoken replies and normal F11/F12 capture/playback. This version does not support speaking over a reply; Escape stops playback. Cancel/Hide does not cancel a task already accepted by Brute.
+- Recognition uses multilingual `whisper.cpp small` plus FluidAudio/Silero VAD, not cloud STT. First enable downloads approximately **500 MB** of model files from Hugging Face into Application Support. Subsequent recognition is offline. Background audio and transcripts are not logged or uploaded; only activated command text is sent to the configured Brute API (whose LLM may be remote).
+- Audio is processed in RAM: a 0.5-second pre-roll, at most 15 seconds per decoding segment, and a 20-second bounded capture backlog. Buffers are released/reset after stop or cancellation. Overflow pauses listening with an error rather than silently dropping commands. A command is limited to 120 seconds / 8,000 characters and is never automatically sent on reaching that limit.
+- Use a **Release build** for real-time listening. The pinned whisper.spm uses Accelerate/CPU; Debug decoding can lag. Wake detection has decoding latency (typically a few seconds), unlike a dedicated hardware wake-word engine. Quality depends on the microphone, pronunciation and chosen name; this is not speaker authentication.
+- Network failures do not trigger automatic retries. Drafts remain visible for copying; check the linked Caesar session before resending an uncertain request. Reply monitoring stops after ten minutes, without cancelling backend execution. Structured questions requiring buttons/options must be answered in Caesar.
+
+### Voice decisions
+
+The user selected hybrid endpointing, activation by name on every turn, a separate voice session, an editable agent name, local recognition, and optional spoken replies enabled by default. Background screenshots are deliberately excluded. Existing F11/F12 behavior remains separate.
