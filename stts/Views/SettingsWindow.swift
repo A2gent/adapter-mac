@@ -488,14 +488,19 @@ private struct SettingsExpandedView: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             card("Command", symbol: "text.bubble") {
-                TextField("End phrases (comma-separated)", text: $model.draft.voice.endPhrases)
+                Text("New session phrases (comma-separated)").font(.subheadline)
+                TextField("new session, start new session", text: $model.draft.voice.newSessionPhrases)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("New session phrases")
+                Text("End phrases (comma-separated)").font(.subheadline)
+                TextField("over, end command", text: $model.draft.voice.endPhrases)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("End phrases")
                 Stepper(
                     "Send after \(formattedSilence(model.draft.voice.silenceSeconds)) seconds without speech",
                     value: $model.draft.voice.silenceSeconds, in: 0.5...30, step: 0.5)
                 Text(
-                    "Each command is limited to 2 minutes. Say 'новая сессия' to start another conversation or 'отмена' to discard a command."
+                    "Each command is limited to 2 minutes. New session phrases only work at the start of your command; end phrases finish it. Say 'cancel' to discard a command."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }

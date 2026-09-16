@@ -125,8 +125,10 @@ final class SettingsWindowTests: XCTestCase {
         let model = makeModel()
         model.voiceModelState = .loading("Downloading models…", 0.25)
         model.draft.voice.agentName = "Custom Agent"
+        model.draft.voice.newSessionPhrases = "new session, restart"
         model.draft.voice.endPhrases = "done, stop"
         XCTAssertEqual(model.draft.voice.agentName, "Custom Agent")
+        XCTAssertEqual(model.draft.voice.newSessionPhrases, "new session, restart")
         XCTAssertEqual(model.draft.voice.endPhrases, "done, stop")
     }
 

@@ -6,6 +6,8 @@ final class VoiceCommandTests: XCTestCase {
     private func russianWakeSettings() -> VoiceSettings {
         var settings = VoiceSettings()
         settings.agentName = "Цезарь"
+        settings.newSessionPhrases = "новая сессия, начни новую сессию"
+        settings.endPhrases = "приём, конец команды"
         settings.silenceSeconds = 10
         return settings
     }
@@ -15,9 +17,25 @@ final class VoiceCommandTests: XCTestCase {
         XCTAssertFalse(settings.enabled)
         XCTAssertTrue(settings.speakReplies)
         XCTAssertEqual(settings.agentName, "Brute")
+        XCTAssertEqual(settings.localeIdentifier, "en-US")
+        XCTAssertEqual(settings.newSessionPhrases, "new session, start new session")
+        XCTAssertEqual(settings.endPhrases, "over, end command")
+        XCTAssertEqual(settings.newSessionPhraseList, ["new session", "start new session"])
+        XCTAssertEqual(settings.endPhraseList, ["over", "end command"])
         var invalid = settings
         invalid.agentName = " , "
         XCTAssertNotNil(invalid.validationMessage)
+        invalid = settings
+        invalid.newSessionPhrases = " , "
+        XCTAssertNotNil(invalid.validationMessage)
+    }
+
+    func testEnglishDefaultsStartAndFinishCommands() {
+        var machine = VoiceCommandState(settings: VoiceSettings())
+        XCTAssertEqual(
+            machine.receive("Brute start new session check the tests end command", now: 0),
+            [.activated, .submit("check the tests", newSession: true)])
+        XCTAssertEqual(machine.receive("Brute new session over", now: 1), [.activated, .newSession])
     }
 
     func testWakeWordBoundaryAndSameUtteranceCommand() {
@@ -50,15 +68,18 @@ final class VoiceCommandTests: XCTestCase {
             [.submit("проверь тесты и исправь ошибки", newSession: false)])
     }
 
-    func testControlPhrasesAndSuffixOnly() {
+    func testControlPhrasesAreConfiguredSeparatelyAndMatchWholePhrases() {
         var machine = VoiceCommandState(settings: russianWakeSettings())
         XCTAssertEqual(
-            machine.receive("Цезарь новая сессия проверь память приём", now: 0),
+            machine.receive("Цезарь начни новую сессию проверь память конец команды", now: 0),
             [.activated, .submit("проверь память", newSession: true)])
         XCTAssertEqual(machine.receive("Цезарь новая сессия приём", now: 1), [.activated, .newSession])
         XCTAssertEqual(machine.receive("Цезарь отмена", now: 2), [.activated, .cancelled])
-        _ = machine.receive("Цезарь объясни слово приём на примере", now: 3)
+        _ = machine.receive("Цезарь объясни слова новая сессия приём на примере", now: 3)
         XCTAssertTrue(machine.listening)
+        XCTAssertEqual(
+            machine.receive("Цезарь объясни слова новая сессия приём на примере конец команды", now: 4),
+            [.submit("объясни слова новая сессия приём на примере", newSession: false)])
     }
 
     func testLongCommandsAreNotSilentlySentAndTextIsBounded() {
@@ -93,6 +114,7 @@ final class VoiceCommandTests: XCTestCase {
     func testCustomWakePhraseAndPunctuationArePreserved() {
         var settings = VoiceSettings()
         settings.agentName = "Эй Алиса"
+        settings.endPhrases = "приём"
         var machine = VoiceCommandState(settings: settings)
         XCTAssertEqual(
             machine.receive("Эй, Алиса, проверь Foo.swift, приём", now: 0),
@@ -118,6 +140,27 @@ final class VoiceCommandTests: XCTestCase {
         settings.agentName = "Цезарь"
         settings.save(to: defaults)
         XCTAssertEqual(VoiceSettings.load(from: defaults).agentName, "Цезарь")
+    }
+
+    func testLegacySettingsKeepExistingValuesAndPreviousNewSessionPhrase() throws {
+        let name = "voice-tests-\(UUID())"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let legacy: [String: Any] = [
+            "enabled": true,
+            "agentName": "Цезарь",
+            "endPhrases": "приём, конец команды",
+            "silenceSeconds": 3.0,
+            "silenceTimingVersion": 1,
+            "speakReplies": false,
+        ]
+        defaults.set(try JSONSerialization.data(withJSONObject: legacy), forKey: "voiceConversationSettings")
+
+        let loaded = VoiceSettings.load(from: defaults)
+        XCTAssertEqual(loaded.agentName, "Цезарь")
+        XCTAssertEqual(loaded.localeIdentifier, "ru-RU")
+        XCTAssertEqual(loaded.endPhrases, "приём, конец команды")
+        XCTAssertEqual(loaded.newSessionPhrases, "новая сессия")
     }
 
     func testVoiceModelLoadStateContract() {

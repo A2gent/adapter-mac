@@ -35,16 +35,20 @@ enum VoiceModelLoadState: Equatable, Sendable {
 struct VoiceSettings: Codable, Equatable, Sendable {
     var enabled = false
     var agentName = "Brute"
-    var endPhrases = "приём, конец команды"
+    var newSessionPhrases = "new session, start new session"
+    var endPhrases = "over, end command"
     var silenceSeconds: Double = 1.5
     var silenceTimingVersion: Int? = 1
     var speakReplies = true
-    var localeIdentifier = "ru-RU"
+    var localeIdentifier = "en-US"
 
     var validationMessage: String? {
         guard !VoiceCommandState.words(agentName).isEmpty else { return "Enter an agent name." }
-        guard agentName.count <= 80, endPhrases.count <= 300 else { return "Voice phrases are too long." }
+        guard agentName.count <= 80, newSessionPhrases.count <= 300, endPhrases.count <= 300 else {
+            return "Voice phrases are too long."
+        }
         guard ["ru-RU", "en-US"].contains(localeIdentifier) else { return "Choose a supported voice language." }
+        guard !newSessionPhraseList.isEmpty else { return "Enter at least one new session phrase." }
         guard !endPhraseList.isEmpty else { return "Enter at least one end phrase." }
         guard silenceSeconds.isFinite, (0.5...30).contains(silenceSeconds) else {
             return "Silence must be 0.5–30 seconds."
@@ -52,8 +56,13 @@ struct VoiceSettings: Codable, Equatable, Sendable {
         return nil
     }
 
-    var endPhraseList: [String] {
-        endPhrases.split(separator: ",").map(String.init).filter { !VoiceCommandState.words($0).isEmpty }
+    var newSessionPhraseList: [String] { Self.phraseList(newSessionPhrases) }
+    var endPhraseList: [String] { Self.phraseList(endPhrases) }
+
+    private static func phraseList(_ value: String) -> [String] {
+        value.split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !VoiceCommandState.words($0).isEmpty }
     }
 
     static func load(from defaults: UserDefaults = .standard) -> Self {
@@ -73,6 +82,26 @@ struct VoiceSettings: Codable, Equatable, Sendable {
     func save(to defaults: UserDefaults = .standard) {
         guard validationMessage == nil, let data = try? JSONEncoder().encode(self) else { return }
         defaults.set(data, forKey: "voiceConversationSettings")
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled, agentName, newSessionPhrases, endPhrases, silenceSeconds, silenceTimingVersion, speakReplies
+        case localeIdentifier
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try values.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        agentName = try values.decodeIfPresent(String.self, forKey: .agentName) ?? "Brute"
+        // Older settings relied on this hard-coded phrase, so preserve it during migration.
+        newSessionPhrases = try values.decodeIfPresent(String.self, forKey: .newSessionPhrases) ?? "новая сессия"
+        endPhrases = try values.decodeIfPresent(String.self, forKey: .endPhrases) ?? "приём, конец команды"
+        silenceSeconds = try values.decodeIfPresent(Double.self, forKey: .silenceSeconds) ?? 1.5
+        silenceTimingVersion = try values.decodeIfPresent(Int.self, forKey: .silenceTimingVersion)
+        speakReplies = try values.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? true
+        localeIdentifier = try values.decodeIfPresent(String.self, forKey: .localeIdentifier) ?? "ru-RU"
     }
 }
 
@@ -153,7 +182,7 @@ struct VoiceCommandState {
             reset()
             return events + [.cancelled]
         }
-        for phrase in settings.endPhraseList {
+        for phrase in settings.endPhraseList.sorted(by: { Self.words($0).count > Self.words($1).count }) {
             let ending = Self.words(phrase)
             let all = Self.tokens(text)
             if all.count >= ending.count, Array(all.suffix(ending.count).map(\.word)) == ending {
@@ -186,13 +215,23 @@ struct VoiceCommandState {
     mutating func finish() -> [VoiceCommandEvent] {
         var command = Self.trim(text)
         let tokens = Self.tokens(command)
-        let newSession = Array(tokens.prefix(2).map(\.word)) == ["новая", "сессия"]
-        if newSession { command = Self.trim(String(command[tokens[1].range.upperBound...])) }
+        var newSession = false
+        let phrases = settings.newSessionPhraseList.sorted {
+            Self.words($0).count > Self.words($1).count
+        }
+        for phrase in phrases {
+            let opening = Self.words(phrase)
+            guard tokens.count >= opening.count,
+                Array(tokens.prefix(opening.count).map(\.word)) == opening
+            else { continue }
+            command = Self.trim(String(command[tokens[opening.count - 1].range.upperBound...]))
+            newSession = true
+            break
+        }
         reset()
         if command.isEmpty { return [newSession ? .newSession : .cancelled] }
         return [.submit(command, newSession: newSession)]
     }
-
     mutating func reset() {
         listening = false
         text = ""

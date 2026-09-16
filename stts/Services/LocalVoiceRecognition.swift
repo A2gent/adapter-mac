@@ -138,7 +138,8 @@ final class LocalVoiceRecognition {
         processing = Task { [weak self] in
             await self?.process(
                 generation: generation, language: settings.localeIdentifier.hasPrefix("ru") ? "ru" : "en",
-                vocabulary: settings.agentName + ". " + settings.endPhrases)
+                vocabulary: [settings.agentName, settings.newSessionPhrases, settings.endPhrases]
+                    .joined(separator: ". "))
         }
     }
 
