@@ -180,14 +180,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .voice: return "ear.badge.waveform"
         }
     }
-    var subtitle: String {
-        switch self {
-        case .general: return "Your voice, connected to A²gent."
-        case .audio: return "Choose how your Mac listens and speaks."
-        case .shortcuts: return "Your next action is just a keystroke away."
-        case .voice: return "Local listening, activated by your agent's name."
-        }
-    }
 }
 
 private struct UnifiedWindowRootView: View {
@@ -293,10 +285,7 @@ private struct SettingsExpandedView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(section.rawValue).font(.system(size: 27, weight: .bold))
-                        Text(section.subtitle).foregroundStyle(.secondary)
-                    }
+                    Text(section.rawValue).font(.system(size: 27, weight: .bold))
                     Spacer()
                     Button(action: onCollapse) {
                         Label("Conversation", systemImage: "bubble.left.and.bubble.right")
@@ -370,48 +359,26 @@ private struct SettingsExpandedView: View {
                     level: model.audioLevel
                 )
                 .frame(height: 190).accessibilityHidden(true)
-                Label(
-                    model.isRecording ? "Listening" : model.isPlaying ? "Speaking" : "Ready when you are",
-                    systemImage: model.isRecording
-                        ? "mic.fill" : model.isPlaying ? "speaker.wave.2.fill" : "checkmark.circle.fill"
-                )
-                .font(.system(size: 17, weight: .semibold))
-                Text("Dictate anywhere. Listen to selected text. Start an agent session.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                if model.isRecording {
+                    Label("Listening", systemImage: "mic.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                } else if model.isPlaying {
+                    Label("Speaking", systemImage: "speaker.wave.2.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                }
             }.frame(maxWidth: .infinity).padding(.bottom, 8)
             Button {
                 model.onNewSession?()
             } label: {
                 Label("New session with screen context", systemImage: "plus.bubble")
             }.buttonStyle(.borderedProminent)
-            Text(
-                "F11 sends to Knowledge Base with a screenshot. Background voice conversations never capture the screen."
-            )
-            .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            HStack(spacing: 14) {
-                summary("Dictation & read aloud", value: model.draft.adapterShortcut.title, symbol: "mic")
-                summary("New Brute session", value: model.draft.bruteShortcut.title, symbol: "sparkles")
+            if model.isPlaying {
+                Button("Stop playback") { model.onStopPlayback?() }.buttonStyle(.borderedProminent)
+            } else {
+                Button(model.isRecording ? "Stop recording" : "Start recording") { model.onToggleRecording?() }
+                    .buttonStyle(.borderedProminent)
             }
-            HStack {
-                if model.isPlaying {
-                    Button("Stop playback") { model.onStopPlayback?() }.buttonStyle(.borderedProminent)
-                } else {
-                    Button(model.isRecording ? "Stop recording" : "Start recording") { model.onToggleRecording?() }
-                        .buttonStyle(.borderedProminent)
-                }
-                Text("Esc to cancel").font(.caption).foregroundStyle(.secondary)
-            }
-            Text("For dictation into another app, place your cursor there and use your shortcut.")
-                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
-    }
-
-    private func summary(_ title: String, value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: symbol).font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(value).font(.system(size: 18, weight: .semibold, design: .rounded))
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var audio: some View {
