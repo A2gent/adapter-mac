@@ -1,5 +1,5 @@
-import Foundation
 import AVFoundation
+import Foundation
 
 @MainActor
 final class AudioService: NSObject {
@@ -8,9 +8,12 @@ final class AudioService: NSObject {
     private let inputDeviceManager = AudioInputDeviceManager()
     private let recorder = AudioRecordingController()
     private let playbackController = AudioPlaybackController()
-    private let textToSpeechSynthesizer = AudioTextToSpeechSynthesizer()
+    private let textToSpeechSynthesizer: AudioTextToSpeechSynthesizer
+    private var synthesisTask: Task<Void, Never>?
+    private var playbackGeneration = UUID()
 
-    override init() {
+    init(textToSpeechSynthesizer: AudioTextToSpeechSynthesizer? = nil) {
+        self.textToSpeechSynthesizer = textToSpeechSynthesizer ?? AudioTextToSpeechSynthesizer()
         super.init()
         wireDelegates()
     }
@@ -73,7 +76,9 @@ final class AudioService: NSObject {
         recorder.startRecording(device: device, completion: completion)
     }
 
-    func stopRecording(completion: @escaping @MainActor @Sendable (Result<AudioRecordingOutcome, AudioRecordingIssue>) -> Void) {
+    func stopRecording(
+        completion: @escaping @MainActor @Sendable (Result<AudioRecordingOutcome, AudioRecordingIssue>) -> Void
+    ) {
         recorder.stopRecording(completion: completion)
     }
 
@@ -90,29 +95,40 @@ final class AudioService: NSObject {
 
         delegate?.audioServiceDidBeginPreparingPlayback(self)
 
-        Task.detached { [weak self, speechText] in
+        synthesisTask?.cancel()
+        _ = textToSpeechSynthesizer.cancelFileSynthesis()
+        playbackGeneration = UUID()
+        let generation = playbackGeneration
+        synthesisTask = Task { [weak self, speechText] in
             guard let self else { return }
-
-            if let audioURL = await self.textToSpeechSynthesizer.synthesizeTextToAudio(text: speechText) {
-                await MainActor.run {
-                    completion(self.playbackController.playGeneratedAudio(url: audioURL))
+            do {
+                let audioURL = try await self.textToSpeechSynthesizer.synthesizeTextToAudio(text: speechText)
+                guard generation == self.playbackGeneration, !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: audioURL)
+                    return
                 }
-                return
-            }
-
-            await MainActor.run {
+                self.synthesisTask = nil
+                let started = self.playbackController.playGeneratedAudio(url: audioURL)
+                if !started { try? FileManager.default.removeItem(at: audioURL) }
+                completion(started)
+            } catch {
+                guard generation == self.playbackGeneration, !Task.isCancelled else { return }
+                self.synthesisTask = nil
+                print("❌ Speech generation failed: \(error.localizedDescription)")
                 completion(false)
             }
         }
     }
 
     func stopPlayback() {
-        DispatchQueue.main.async {
-            let didCancelFileSynthesis = self.textToSpeechSynthesizer.cancelFileSynthesis()
-            self.playbackController.stop()
-            if didCancelFileSynthesis {
-                self.delegate?.audioServiceDidFinishPlayback(self)
-            }
+        playbackGeneration = UUID()
+        let wasSynthesizing = synthesisTask != nil
+        synthesisTask?.cancel()
+        synthesisTask = nil
+        let didCancelFileSynthesis = textToSpeechSynthesizer.cancelFileSynthesis()
+        playbackController.stop()
+        if wasSynthesizing || didCancelFileSynthesis {
+            delegate?.audioServiceDidFinishPlayback(self)
         }
     }
 

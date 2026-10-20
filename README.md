@@ -25,7 +25,7 @@ Acts as a client for [brute agent](https://github.com/A2gent/brute) that must ru
   - No selection -> Speech-to-Text (records audio, transcribes, pastes result)
 - **Menu bar presence** with a dedicated, resizable settings window (no dropdown)
   - **Selectable microphones** with clearer labels for built-in, external, Bluetooth, and iPhone Continuity inputs
-  - **Selectable TTS engines** in Settings: automatic, native macOS speech, and `edge-tts`
+  - **Selectable TTS engines** for agent replies and selected text: Brute settings (Automatic), native macOS speech, and `edge-tts`
 
 ## Requirements
 
@@ -88,12 +88,13 @@ Test the endpoint:
 
 ### Text-to-Speech Privacy
 
-adapter-mac supports:
+adapter-mac supports the same output choice for agent replies and selected-text playback:
 
-- `edge-tts` for higher-quality voices via Microsoft online TTS
-- native macOS speech synthesis as a local fallback
+- **Brute settings (Automatic)** (default): sends text to the configured backend's `POST /speech/completion`, omitting model and language overrides. Brute selects the engine, model and voice from its Speech settings (`AAGENT_TTS_ENGINE` and engine-specific options). Changes in Brute apply to the next request without changing the adapter.
+- **System Voice**: native macOS speech synthesis on this Mac.
+- **edge-tts**: Microsoft online TTS, with native macOS speech as a fallback.
 
-When `edge-tts` is selected or used by the automatic engine, the selected text is sent to Microsoft's online text-to-speech service to generate audio. If you prefer local-only speech synthesis, choose the native macOS voice option in Settings.
+Automatic requires a running Brute backend and never silently falls back to Edge or system speech. Whether text stays local or reaches a cloud service depends on the engine configured in Brute. Explicitly selecting edge-tts sends text to Microsoft; choose System Voice for local-only speech on this Mac. Recognition language configures speech recognition, not Brute's output voice.
 
 ## Architecture
 

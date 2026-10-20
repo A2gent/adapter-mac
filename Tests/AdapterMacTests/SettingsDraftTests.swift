@@ -40,7 +40,17 @@ final class SettingsDraftTests: XCTestCase {
     func testLocalProviderDoesNotRequireBackendURL() {
         var value = draft()
         value.provider = .localWhisperCPP
+        value.ttsEngine = .system
         value.endpoint = ""
+        XCTAssertNil(value.validationMessage)
+    }
+
+    func testBruteSpeechRequiresBackendEvenWithLocalTranscription() {
+        var value = draft()
+        value.provider = .localWhisperCPP
+        value.endpoint = ""
+        XCTAssertNotNil(value.validationMessage)
+        value.endpoint = "http://localhost:5445/speech/transcribe"
         XCTAssertNil(value.validationMessage)
     }
 }

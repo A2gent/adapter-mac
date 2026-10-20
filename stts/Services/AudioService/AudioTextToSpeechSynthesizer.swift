@@ -13,9 +13,19 @@ final class AudioTextToSpeechSynthesizer: NSObject {
     private var fileSpeechOutputURL: URL?
     private var didResumeFileSpeechCompletion = false
 
-    nonisolated func selectedTTSEngine() -> TTSEngine {
-        guard let rawValue = UserDefaults.standard.string(forKey: selectedTTSEngineKey),
-              let engine = TTSEngine(rawValue: rawValue) else {
+    private let speechService: BruteSpeechService
+    private let defaults: UserDefaults
+
+    init(speechService: BruteSpeechService = BruteSpeechService(), defaults: UserDefaults = .standard) {
+        self.speechService = speechService
+        self.defaults = defaults
+        super.init()
+    }
+
+    func selectedTTSEngine() -> TTSEngine {
+        guard let rawValue = defaults.string(forKey: selectedTTSEngineKey),
+            let engine = TTSEngine(rawValue: rawValue)
+        else {
             return .automatic
         }
 
@@ -23,7 +33,7 @@ final class AudioTextToSpeechSynthesizer: NSObject {
     }
 
     func selectTTSEngine(_ engine: TTSEngine) {
-        UserDefaults.standard.set(engine.rawValue, forKey: selectedTTSEngineKey)
+        defaults.set(engine.rawValue, forKey: selectedTTSEngineKey)
     }
 
     func ttsEngineAvailabilitySummary() -> String {
@@ -34,23 +44,27 @@ final class AudioTextToSpeechSynthesizer: NSObject {
         return availability.joined(separator: " | ")
     }
 
-    func synthesizeTextToAudio(text: String) async -> URL? {
+    func synthesizeTextToAudio(text: String, baseURL: URL? = nil) async throws -> URL {
+        let audioURL: URL?
         switch selectedTTSEngine() {
         case .automatic:
-            if let audioURL = synthesizeWithEdgeIfAvailable(text: text) {
-                return audioURL
+            guard let baseURL = baseURL ?? WhisperService.shared.apiBaseURL() else {
+                throw SessionServiceError.message("Configure a valid Brute HTTP URL in Audio & speech settings.")
             }
-
-            return await synthesizeWithSystemVoice(text: text)
+            return try await speechService.synthesize(text: text, baseURL: baseURL)
         case .system:
-            return await synthesizeWithSystemVoice(text: text)
+            audioURL = await synthesizeWithSystemVoice(text: text)
         case .edge:
-            if let audioURL = synthesizeWithEdgeIfAvailable(text: text) {
-                return audioURL
+            if let edgeURL = synthesizeWithEdgeIfAvailable(text: text) {
+                audioURL = edgeURL
+            } else {
+                audioURL = await synthesizeWithSystemVoice(text: text)
             }
-
-            return await synthesizeWithSystemVoice(text: text)
         }
+        guard let audioURL else {
+            throw SessionServiceError.message("Could not generate speech audio.")
+        }
+        return audioURL
     }
 
     func cancelFileSynthesis() -> Bool {
@@ -166,7 +180,7 @@ final class AudioTextToSpeechSynthesizer: NSObject {
             "--rate", edgeRate,
             "--pitch", edgePitch,
             "--file", inputURL.path,
-            "--write-media", outputURL.path
+            "--write-media", outputURL.path,
         ]
 
         let stdout = Pipe()
@@ -185,7 +199,8 @@ final class AudioTextToSpeechSynthesizer: NSObject {
 
         let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
         let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let message = String(data: errorData + outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let message =
+            String(data: errorData + outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         guard process.terminationStatus == 0 else {
             print("❌ edge-tts failed: \(message.isEmpty ? "unknown error" : message)")
@@ -204,7 +219,8 @@ final class AudioTextToSpeechSynthesizer: NSObject {
 
     private func edgeBinaryURL() -> URL? {
         let envPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        let pathDirectories = envPath
+        let pathDirectories =
+            envPath
             .split(separator: ":")
             .map(String.init)
 
@@ -217,7 +233,7 @@ final class AudioTextToSpeechSynthesizer: NSObject {
             "\(homeDirectory)/Library/Python/3.10/bin",
             "\(homeDirectory)/Library/Python/3.11/bin",
             "\(homeDirectory)/Library/Python/3.12/bin",
-            "\(homeDirectory)/Library/Python/3.13/bin"
+            "\(homeDirectory)/Library/Python/3.13/bin",
         ]
 
         let allDirectories = Array(Set(pathDirectories + fallbackDirectories))
@@ -234,7 +250,7 @@ final class AudioTextToSpeechSynthesizer: NSObject {
     private func ttsEngineStatus(for engine: TTSEngine) -> String {
         switch engine {
         case .automatic:
-            return "prefers edge-tts, then system"
+            return "uses Brute Speech settings (backend required)"
         case .system:
             return "available"
         case .edge:

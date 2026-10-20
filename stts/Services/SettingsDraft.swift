@@ -15,14 +15,14 @@ struct SettingsDraft: Equatable {
         if adapterShortcut == bruteShortcut {
             return "Dictation and Brute session shortcuts must be different."
         }
-        if provider == .bruteHTTP || voice.enabled {
+        if provider == .bruteHTTP || voice.enabled || ttsEngine == .automatic {
             let value = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let url = URL(string: value),
                 let scheme = url.scheme?.lowercased(),
                 ["http", "https"].contains(scheme),
                 let host = url.host, !host.isEmpty
             else {
-                return "Enter a valid HTTP or HTTPS transcription URL."
+                return "Enter a valid HTTP or HTTPS Brute backend URL."
             }
         }
         return nil

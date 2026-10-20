@@ -220,3 +220,20 @@ No live-microphone, live-backend, or native screenshot acceptance is claimed by 
 - New deterministic tests stall the decoder across six paused segments, preserve every final PCM sample and segment order, suppress previews while busy, resume previews when idle, accept more than four short finals, and check sample-budget exhaustion/replacement/pop accounting.
 - The shared scheme's normal Run is Release; Debug remains available for diagnosis. `xcodebuild -project adapter-mac.xcodeproj -scheme adapter-mac -showBuildSettings` must report `CONFIGURATION = Release` without an override.
 - Manual acceptance: stop the old Debug instance; run the shared Release scheme; Retry voice setup if needed. Speak several short clauses separated by pauses, then a longer command. Verify no four-fragment error, ordered text without duplicate words, and final audio included before send. Real microphone/backend acceptance is still required (A-40).
+
+## Brute-controlled speech output
+
+Decision: Automatic follows Brute Speech settings for both spoken agent replies and F12 selected-text playback. Existing `automatic` preferences keep that value but now use Brute, not Edge/system fallback. Explicit System Voice and edge-tts remain overrides.
+
+Automated: `swift test --filter 'BruteSpeechServiceTests|VoiceReplySpeakerTests|SpeechPlaybackTests|SettingsDraftTests'` covers the text-only `/speech/completion` request, inherited backend model/voice, base-path preservation, invalid URLs/audio, HTTP errors, existing Automatic preferences, required backend configuration, cancelled late replies, superseded synthesis errors, and stopping F12 preparation without stale playback or a stuck UI.
+
+Verified on 2026-10-20: 115 tests executed with zero failures (one opt-in decoder smoke test skipped); Xcode Release build and strict Swift formatting lint for changed files passed. A live text-only request to Brute returned HTTP 200, `audio/wave`, mono 48 kHz audio; the backend was configured for Silero `v5_5_ru`, voice `kseniya`. Hardware microphone/playback acceptance remains tracked as T-210.
+
+Manual acceptance:
+- Select **Brute settings (Automatic)** in Audio & speech; enable **Speak agent replies**.
+- Set a distinctive model/voice in Brute Speech settings. Ask a voice question and use F12 on selected text; both should use that configuration.
+- Change the Brute voice without changing adapter settings; the next reply should use the new voice.
+- With local transcription selected, verify the backend field remains available when Brute speech is selected.
+- Disconnect Brute: reply speech must show an error without silently switching to Edge/system or losing the written answer.
+- Stop while speech is preparing, disable background listening, or start dictation: delayed audio must not play, and the microphone must stay paused during reply playback.
+- Explicit System Voice and edge-tts should still work as manual overrides.

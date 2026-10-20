@@ -48,6 +48,8 @@
 		1A0000010000000000000086 /* VoiceUtteranceStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000086; };
         A20000000000000000000001 = {isa = PBXBuildFile; productRef = A20000000000000000000011; };
         A20000000000000000000002 = {isa = PBXBuildFile; productRef = A20000000000000000000012; };
+		1A0000010000000000000091 /* BruteSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000091; };
+		1A0000010000000000000092 /* VoiceReplySpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000020000000000000092; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -92,6 +94,8 @@
 		1A0000020000000000000084 /* VoiceOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Views/VoiceOverlayWindow.swift; sourceTree = SOURCE_ROOT; };
 		1A0000020000000000000085 /* VoiceWhisperDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceWhisperDecoder.swift; sourceTree = SOURCE_ROOT; };
 		1A0000020000000000000086 /* VoiceUtteranceStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceUtteranceStream.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000091 /* BruteSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/BruteSpeechService.swift; sourceTree = SOURCE_ROOT; };
+		1A0000020000000000000092 /* VoiceReplySpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stts/Services/VoiceReplySpeaker.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +132,8 @@
 				1A0000020000000000000086 /* VoiceUtteranceStream.swift */,
 				1A0000020000000000000084 /* VoiceOverlayWindow.swift */,
 				1A0000020000000000000083 /* VoiceConversationController.swift */,
+				1A0000020000000000000092 /* VoiceReplySpeaker.swift */,
+				1A0000020000000000000091 /* BruteSpeechService.swift */,
 				1A0000020000000000000082 /* VoiceSessionModels.swift */,
 				1A0000020000000000000081 /* LocalVoiceRecognition.swift */,
 				1A0000020000000000000080 /* VoiceCommandState.swift */,
@@ -266,6 +272,8 @@
 				1A0000010000000000000086 /* VoiceUtteranceStream.swift in Sources */,
 				1A0000010000000000000084 /* VoiceOverlayWindow.swift in Sources */,
 				1A0000010000000000000083 /* VoiceConversationController.swift in Sources */,
+				1A0000010000000000000092 /* VoiceReplySpeaker.swift in Sources */,
+				1A0000010000000000000091 /* BruteSpeechService.swift in Sources */,
 				1A0000010000000000000082 /* VoiceSessionModels.swift in Sources */,
 				1A0000010000000000000081 /* LocalVoiceRecognition.swift in Sources */,
 				1A0000010000000000000080 /* VoiceCommandState.swift in Sources */,

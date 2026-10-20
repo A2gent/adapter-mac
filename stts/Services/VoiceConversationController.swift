@@ -2,7 +2,7 @@
 import AppKit
 
 @MainActor
-final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
+final class VoiceConversationController: NSObject {
     var onStatus: ((String, Bool) -> Void)?
     var onModelState: ((VoiceModelLoadState) -> Void)?
     private(set) var modelState: VoiceModelLoadState = .idle {
@@ -12,7 +12,7 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
     private var deviceID: String?
     private var startupID = UUID()
     private let recognition = LocalVoiceRecognition()
-    private let speaker = AVSpeechSynthesizer()
+    private let speaker = VoiceReplySpeaker()
     private let service = BruteSessionService()
     let model = VoiceOverlayModel()
     var onPresent: (() -> Void)?
@@ -25,7 +25,6 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
     private var enabled = false
     private var suspended = false
     private var speaking = false
-    private var currentUtterance: AVSpeechUtterance?
     private var failed = false
     private var sessionID: String?
     private var sessionBaseURL: URL?
@@ -36,7 +35,6 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
 
     override init() {
         super.init()
-        speaker.delegate = self
         model.onSend = { [weak self] in
             guard let self, !self.recognition.decoding else { return }
             self.handle(self.machine.finish())
@@ -74,9 +72,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         stopStartup()
         recognition.stop()
         timer?.cancel()
-        speaker.stopSpeaking(at: .immediate)
+        speaker.stop()
         speaking = false
-        currentUtterance = nil
         deferredReplies.removeAll()
         if !enabled {
             generation = UUID()
@@ -118,9 +115,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
             if modelState.isLoading { modelState = .idle }
             recognition.stop()
             machine.reset()
-            speaker.stopSpeaking(at: .immediate)
+            speaker.stop()
             speaking = false
-            currentUtterance = nil
             onHide?()
             if enabled { onStatus?("Voice paused for dictation/playback", false) }
         } else {
@@ -136,9 +132,8 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         model.text = ""
         model.canSend = false
         model.status = enabled ? "Say \(settings.agentName) to start" : "Voice listening off"
-        speaker.stopSpeaking(at: .immediate)
+        speaker.stop()
         speaking = false
-        currentUtterance = nil
         deferredReplies.removeAll()
         pending.removeAll()
         failed = false
@@ -381,21 +376,20 @@ final class VoiceConversationController: NSObject, AVSpeechSynthesizerDelegate {
         model.activity = "speaking"
         model.status = "Speaking · microphone paused"
         onPresent?()
-        let utterance = AVSpeechUtterance(string: String(text.prefix(12_000)))
-        utterance.voice = AVSpeechSynthesisVoice(language: settings.localeIdentifier)
-        currentUtterance = utterance
-        speaker.speak(utterance)
-    }
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor [weak self] in
-            guard let self, self.speaking, self.currentUtterance === utterance else { return }
+        speaker.speak(text: String(text.prefix(12_000)), baseURL: sessionBaseURL) { [weak self] result in
+            guard let self else { return }
             self.speaking = false
-            self.currentUtterance = nil
-            // Keep the reply visible in the conversation window.
+            if case .failure(let error) = result {
+                self.fail("Reply speech failed: \(error.localizedDescription)")
+                return
+            }
             // Let the loudspeaker tail decay before rearming the microphone.
-            try? await Task.sleep(for: .milliseconds(500))
-            if !self.deferredReplies.isEmpty { self.speakDeferredReply() } else { self.resumeListening() }
+            let feedback = self.feedbackGeneration
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, feedback == self.feedbackGeneration else { return }
+                if !self.deferredReplies.isEmpty { self.speakDeferredReply() } else { self.resumeListening() }
+            }
         }
     }
 

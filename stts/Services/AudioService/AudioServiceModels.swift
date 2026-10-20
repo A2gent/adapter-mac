@@ -6,7 +6,9 @@ protocol AudioServiceDelegate: AnyObject {
     func audioService(_ service: AudioService, didUpdateRecordingState state: AudioRecordingState)
     func audioServiceDidBeginPreparingPlayback(_ service: AudioService)
     func audioService(_ service: AudioService, didStartPlaybackWithDuration duration: TimeInterval)
-    func audioService(_ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval, isPlaying: Bool)
+    func audioService(
+        _ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval,
+        isPlaying: Bool)
     func audioServiceDidFinishPlayback(_ service: AudioService)
 }
 
@@ -14,7 +16,10 @@ extension AudioServiceDelegate {
     func audioService(_ service: AudioService, didUpdateRecordingState state: AudioRecordingState) {}
     func audioServiceDidBeginPreparingPlayback(_ service: AudioService) {}
     func audioService(_ service: AudioService, didStartPlaybackWithDuration duration: TimeInterval) {}
-    func audioService(_ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval, isPlaying: Bool) {}
+    func audioService(
+        _ service: AudioService, didUpdatePlaybackPosition currentTime: TimeInterval, duration: TimeInterval,
+        isPlaying: Bool
+    ) {}
     func audioServiceDidFinishPlayback(_ service: AudioService) {}
 }
 
@@ -37,7 +42,7 @@ enum TTSEngine: String, CaseIterable {
     var title: String {
         switch self {
         case .automatic:
-            return "Automatic"
+            return "Brute settings (Automatic)"
         case .system:
             return "System Voice"
         case .edge:

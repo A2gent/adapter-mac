@@ -398,12 +398,16 @@ private struct SettingsExpandedView: View {
                 Picker("Provider", selection: $model.draft.provider) {
                     ForEach(TranscriptionProviderOption.allCases, id: \.rawValue) { Text($0.title).tag($0) }
                 }
-                if model.draft.provider == .bruteHTTP {
+                if model.draft.provider == .bruteHTTP || model.draft.ttsEngine == .automatic
+                    || model.draft.voice.enabled
+                {
                     TextField(
                         "Backend URL", text: $model.draft.endpoint,
                         prompt: Text("http://localhost:5445/speech/transcribe")
                     )
                     .textFieldStyle(.roundedBorder).accessibilityLabel("Backend URL")
+                }
+                if model.draft.provider == .bruteHTTP {
                     Text("Audio is sent to your configured Brute backend for transcription.").font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -418,8 +422,12 @@ private struct SettingsExpandedView: View {
                     ForEach(TTSEngine.allCases, id: \.rawValue) { Text($0.title).tag($0) }
                 }
                 Text(model.ttsAvailability).font(.caption).foregroundStyle(.secondary)
-                Text("edge-tts sends selected text to Microsoft. Choose System Voice for local-only speech.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(
+                    model.draft.ttsEngine == .automatic
+                        ? "Uses the model and voice configured in Brute Speech settings for replies and selected text."
+                        : "edge-tts sends text to Microsoft. System Voice stays on this Mac."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -472,7 +480,7 @@ private struct SettingsExpandedView: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             card("Reply", symbol: "speaker.wave.2") {
-                Toggle("Speak agent replies (local system voice)", isOn: $model.draft.voice.speakReplies)
+                Toggle("Speak agent replies", isOn: $model.draft.voice.speakReplies)
                 Text(
                     "The microphone pauses during replies and while F11/F12 recording or playback is active."
                 )
